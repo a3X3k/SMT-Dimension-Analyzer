@@ -35,5 +35,6 @@ class ProjectState:
     unique_parts: list[UniquePart] = field(default_factory=list)
     cad_records: list[CadRecord] = field(default_factory=list)
     gerber_documents: list = field(default_factory=list)
-    dimension_results: dict = field(default_factory=dict)\n    mpn_lookup_results: dict = field(default_factory=dict)
+    dimension_results: dict = field(default_factory=dict)
+    mpn_lookup_results: dict = field(default_factory=dict)
     manual_gerber_matches: dict = field(default_factory=dict)
