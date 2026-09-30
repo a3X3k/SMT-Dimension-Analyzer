@@ -1,6 +1,6 @@
 """Conservative component review proposals from accepted CAD + Gerber geometry."""
 from dataclasses import dataclass, field
-from math import hypot
+from math import hypot, radians, sin, cos
 SILK_LAYERS={"Top Silkscreen","Bottom Silkscreen"}; PASTE_LAYERS={"Top Paste","Bottom Paste"}
 
 @dataclass
@@ -29,6 +29,18 @@ def _bbox(doc,p):
     return None if not xs or not ys else (min(xs)-hx,min(ys)-hy,max(xs)+hx,max(ys)+hy)
 
 def _near(b,x,y,r): return b and not (b[2]<x-r or b[0]>x+r or b[3]<y-r or b[1]>y+r)
+
+def _forward(x,y,dx,dy,angle):
+    a=radians(angle); return x*cos(a)-y*sin(a)+dx, x*sin(a)+y*cos(a)+dy
+
+def _inverse(x,y,dx,dy,angle):
+    a=radians(-angle); x-=dx; y-=dy
+    return x*cos(a)-y*sin(a), x*sin(a)+y*cos(a)
+
+def _transform_bbox(b,dx,dy,angle):
+    pts=[_forward(b[0],b[1],dx,dy,angle),_forward(b[0],b[3],dx,dy,angle),_forward(b[2],b[1],dx,dy,angle),_forward(b[2],b[3],dx,dy,angle)]
+    xs=[p[0] for p in pts]; ys=[p[1] for p in pts]
+    return min(xs),min(ys),max(xs),max(ys)
 def _union(bs): return min(b[0] for b in bs),min(b[1] for b in bs),max(b[2] for b in bs),max(b[3] for b in bs)
 
 def _body_candidate(doc,x,y,r):
@@ -63,36 +75,39 @@ def _pad_geometry(doc,x,y,r):
     px,py=_pitch(xs),_pitch(ys); candidates=[v for v in (px,py) if v]
     return len(pts),(min(candidates) if candidates else None),len(uy),len(ux)
 
-def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0):
+def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0)):
     if x is None or y is None:return GerberDimensionResult(ref,remarks="CAD X/Y required.")
     side=_side(cad_layer); docs=[d for d in documents if not side or _side(d.layer)==side]
+    dx,dy,angle=alignment; gx,gy=_inverse(x,y,dx,dy,angle)
     result=None
     for wanted,source,conf in [(SILK_LAYERS,"Gerber Silkscreen - Proposed","MEDIUM")]:
         for d in docs:
             if d.layer not in wanted:continue
-            b,ids=_body_candidate(d,x,y,search_radius_mm)
+            b,ids=_body_candidate(d,gx,gy,search_radius_mm)
             if not b:continue
             l,w=b[2]-b[0],b[3]-b[1]; cx,cy=(b[0]+b[2])/2,(b[1]+b[3])/2
-            if not(.15<=l<=50 and .15<=w<=50 and hypot(cx-x,cy-y)<=2.5):continue
+            if not(.15<=l<=50 and .15<=w<=50 and hypot(cx-gx,cy-gy)<=2.5):continue
+            b_aligned=_transform_bbox(b,dx,dy,angle); acx,acy=_forward(cx,cy,dx,dy,angle)
+            l,w=b_aligned[2]-b_aligned[0],b_aligned[3]-b_aligned[1]
             result=GerberDimensionResult(ref,round(max(l,w),4),round(min(l,w),4),None,source,conf,"WAITING FOR USER ACCEPTANCE",
-                "Silkscreen body proposal only. Use only after user acceptance when reliable MPN/manufacturer dimensions are unavailable. Height not inferred.",round(cx,4),round(cy,4),d.layer,b,ids)
+                "Silkscreen body proposal only. Use only after user acceptance when reliable MPN/manufacturer dimensions are unavailable. Height not inferred.",round(acx,4),round(acy,4),d.layer,b_aligned,ids)
             break
         if result:break
     if not result:result=GerberDimensionResult(ref,remarks="No reliable MPN/manufacturer dimensions supplied and no credible silkscreen body proposal; manual review required.")
     for d in docs:
         if d.layer in PASTE_LAYERS:
-            n,pitch,rows,cols=_pad_geometry(d,x,y,search_radius_mm)
+            n,pitch,rows,cols=_pad_geometry(d,gx,gy,search_radius_mm)
             if n:
                 result.pad_count=n; result.pitch_mm=pitch; result.pad_rows=rows; result.pad_columns=cols
                 result.remarks += " Paste flashes are reported as pad/ball candidates; they are not automatically physical pin dimensions."
                 break
     return result
 
-def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_mm=4.0):
+def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0)):
     by_ref={c.ref.strip().upper():c for c in cad_records}; out={}
     for p in unique_parts:
         c=by_ref.get(p.representative_ref.strip().upper())
-        out[p.mpn]=derive_gerber_dimension(p.representative_ref,getattr(c,"x",None),getattr(c,"y",None),getattr(c,"layer",""),documents,search_radius_mm) if c else GerberDimensionResult(p.representative_ref,remarks="Representative reference not found in CAD.")
+        out[p.mpn]=derive_gerber_dimension(p.representative_ref,getattr(c,"x",None),getattr(c,"y",None),getattr(c,"layer",""),documents,search_radius_mm,alignment) if c else GerberDimensionResult(p.representative_ref,remarks="Representative reference not found in CAD.")
     return out
 
 
