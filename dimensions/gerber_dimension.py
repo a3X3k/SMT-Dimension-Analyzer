@@ -94,3 +94,18 @@ def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_m
         c=by_ref.get(p.representative_ref.strip().upper())
         out[p.mpn]=derive_gerber_dimension(p.representative_ref,getattr(c,"x",None),getattr(c,"y",None),getattr(c,"layer",""),documents,search_radius_mm) if c else GerberDimensionResult(p.representative_ref,remarks="Representative reference not found in CAD.")
     return out
+
+
+def apply_manual_matches(unique_parts, automatic_results, manual_matches):
+    """Preserve Stage-6 explicit primitive selections as highest-confidence user-confirmed Gerber results."""
+    out=dict(automatic_results)
+    for p in unique_parts:
+        m=manual_matches.get(p.representative_ref.strip().upper())
+        if not m or getattr(m,"length_mm",None) is None or getattr(m,"width_mm",None) is None: continue
+        out[p.mpn]=GerberDimensionResult(
+            ref=p.representative_ref,length_mm=round(m.length_mm,4),width_mm=round(m.width_mm,4),height_mm=None,
+            source=f"Gerber Derived - User Confirmed ({m.layer})",confidence="USER CONFIRMED",status="USER ACCEPTED",
+            remarks=f"Manual CAD/Gerber primitive selection confirmed {m.confirmed_at}. Height not inferred.",
+            gerber_x=m.center_x,gerber_y=m.center_y,layer=m.layer,body_bbox=getattr(m,"bbox",None),
+            primitive_ids=list(getattr(m,"primitive_ids",[]) or []),accepted=True)
+    return out
