@@ -14,7 +14,7 @@ def test_silkscreen_preferred(tmp_path):
 def test_paste_fallback(tmp_path):
     paste=tmp_path/'a.GTP'; _write_rect(paste,5,6,1.0,.5)
     r=derive_gerber_dimension('R1',5,6,'Top',[parse_gerber(paste)])
-    assert 'Solder Paste' in r.source and r.confidence=='LOW'; assert r.length_mm > .99
+    assert r.status=='NOT AVAILABLE / MANUAL REVIEW'; assert r.length_mm is None
 
 def test_wrong_side_not_used(tmp_path):
     silk=tmp_path/'a.GBO'; _write_rect(silk,10,20,2,1)
