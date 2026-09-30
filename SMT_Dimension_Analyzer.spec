@@ -1,7 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_submodules
 
-hiddenimports = collect_submodules('PySide6')
+hiddenimports = (
+    collect_submodules('PySide6')
+    + collect_submodules('ui')
+    + collect_submodules('parsers')
+    + collect_submodules('dimensions')
+    + collect_submodules('lookup')
+    + collect_submodules('export')
+)
 
 a = Analysis(
     ['app.py'],
