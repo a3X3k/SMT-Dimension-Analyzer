@@ -67,7 +67,7 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0):
     if x is None or y is None:return GerberDimensionResult(ref,remarks="CAD X/Y required.")
     side=_side(cad_layer); docs=[d for d in documents if not side or _side(d.layer)==side]
     result=None
-    for wanted,source,conf in [(SILK_LAYERS,"Gerber Derived - Silkscreen","MEDIUM"),(PASTE_LAYERS,"Gerber Derived - Solder Paste","LOW")]:
+    for wanted,source,conf in [(SILK_LAYERS,"Gerber Silkscreen - Proposed","MEDIUM")]:
         for d in docs:
             if d.layer not in wanted:continue
             b,ids=_body_candidate(d,x,y,search_radius_mm)
@@ -75,10 +75,10 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0):
             l,w=b[2]-b[0],b[3]-b[1]; cx,cy=(b[0]+b[2])/2,(b[1]+b[3])/2
             if not(.15<=l<=50 and .15<=w<=50 and hypot(cx-x,cy-y)<=2.5):continue
             result=GerberDimensionResult(ref,round(max(l,w),4),round(min(l,w),4),None,source,conf,"WAITING FOR USER ACCEPTANCE",
-                "Gerber proposal only. Verify visible outline before acceptance. Height not inferred.",round(cx,4),round(cy,4),d.layer,b,ids)
+                "Silkscreen body proposal only. Use only after user acceptance when reliable MPN/manufacturer dimensions are unavailable. Height not inferred.",round(cx,4),round(cy,4),d.layer,b,ids)
             break
         if result:break
-    if not result:result=GerberDimensionResult(ref,remarks="No credible local body proposal; manual review required.")
+    if not result:result=GerberDimensionResult(ref,remarks="No reliable MPN/manufacturer dimensions supplied and no credible silkscreen body proposal; manual review required.")
     for d in docs:
         if d.layer in PASTE_LAYERS:
             n,pitch,rows,cols=_pad_geometry(d,x,y,search_radius_mm)
