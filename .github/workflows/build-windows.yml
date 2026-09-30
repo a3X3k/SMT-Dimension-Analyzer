@@ -21,12 +21,19 @@ jobs:
         run: pytest -q
       - name: Build executable
         run: python -m PyInstaller --clean --noconfirm SMT_Dimension_Analyzer.spec
+      - name: Verify source imports
+        run: python -c "from ui.main_window import MainWindow; from ui.pcb_workspace import PCBWorkspace; print('Application imports OK')"
       - name: Verify executable
         shell: pwsh
         run: |
           if (!(Test-Path 'dist/SMT_Dimension_Analyzer.exe')) { throw 'EXE not produced' }
           Get-Item 'dist/SMT_Dimension_Analyzer.exe' | Format-List Name,Length,LastWriteTime
           Get-FileHash 'dist/SMT_Dimension_Analyzer.exe' -Algorithm SHA256
+          $p = Start-Process -FilePath 'dist/SMT_Dimension_Analyzer.exe' -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { throw "Frozen app exited during startup smoke test with code $($p.ExitCode)" }
+          Stop-Process -Id $p.Id -Force
+          Write-Host 'Frozen application startup smoke test passed'
       - uses: actions/upload-artifact@v4
         with:
           name: SMT-Dimension-Analyzer-Windows-x64
