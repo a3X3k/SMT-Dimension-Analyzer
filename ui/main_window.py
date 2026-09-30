@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
         self.workspace=PCBWorkspace(); self.workspace.componentClicked.connect(self._select_ref); split.addWidget(self.workspace)
         right=QWidget(); rr=QVBoxLayout(right); split.addWidget(right); split.setSizes([1050,450])
         self.tabs=QTabWidget(); rr.addWidget(self.tabs)
-        self._files_tab(); self._alignment_tab(); self._review_tab()
+        self._files_tab(); self._layers_tab(); self._alignment_tab(); self._review_tab()
 
     def _files_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"Files / Mapping")
@@ -48,6 +48,29 @@ class MainWindow(QMainWindow):
         self.bom_info=QLabel("BOM: not loaded"); self.bom_info.setWordWrap(True); l.addWidget(self.bom_info)
         self.gerber_info=QLabel("Gerber: not loaded"); self.gerber_info.setWordWrap(True); l.addWidget(self.gerber_info)
         l.addStretch()
+
+    def _layers_tab(self):
+        w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"Gerber Layers")
+        l.addWidget(QLabel("Show/hide each file or correct its detected engineering layer type. Changes apply immediately."))
+        self.layer_table=QTableWidget(0,3); self.layer_table.setHorizontalHeaderLabels(["Visible","Gerber File","Assigned Type"])
+        self.layer_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.Stretch); l.addWidget(self.layer_table,1)
+
+    def _refresh_layers(self):
+        types=["Top Silkscreen","Bottom Silkscreen","Top Solder Mask","Bottom Solder Mask","Top Paste","Bottom Paste","Top Copper","Bottom Copper","Other / Ignore"]
+        self.layer_table.setRowCount(len(self.state.gerber_documents))
+        for r,d in enumerate(self.state.gerber_documents):
+            vis=QCheckBox(); vis.setChecked(True); vis.toggled.connect(lambda on,p=str(d.path):self.workspace.set_layer_visible(p,on))
+            box=QWidget(); bl=QHBoxLayout(box); bl.setContentsMargins(8,0,0,0); bl.addWidget(vis); bl.addStretch(); self.layer_table.setCellWidget(r,0,box)
+            self.layer_table.setItem(r,1,QTableWidgetItem(d.path.name))
+            combo=QComboBox(); combo.addItems(types)
+            if d.layer not in types: combo.insertItem(0,d.layer)
+            combo.setCurrentText(d.layer); combo.currentTextChanged.connect(lambda value,doc=d:self._assign_layer(doc,value)); self.layer_table.setCellWidget(r,2,combo)
+
+    def _assign_layer(self,doc,value):
+        doc.layer=value
+        self.state.dimension_results={}
+        self.gerber_info.setText("Gerber: "+", ".join(f"{d.path.name} [{d.layer}]" for d in self.state.gerber_documents))
+        self.workspace.redraw(); self._update_status()
 
     def _alignment_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"CAD ↔ Gerber Alignment")
@@ -119,7 +142,7 @@ class MainWindow(QMainWindow):
         if not files:return
         self.state.gerber_paths=[Path(x) for x in files]; self.state.gerber_documents=parse_gerber_files(files); self.state.dimension_results={}
         self.gerber_info.setText("Gerber: "+", ".join(f"{d.path.name} [{d.layer}]" for d in self.state.gerber_documents))
-        self.workspace.set_data(gerbers=self.state.gerber_documents); self.workspace.fit_board(); self._update_status()
+        self.workspace.set_data(gerbers=self.state.gerber_documents); self._refresh_layers(); self.workspace.fit_board(); self._update_status()
 
     def _alignment_changed(self):
         self.dx=self.xoff.value(); self.dy=self.yoff.value(); self.da=self.aoff.value()
@@ -181,7 +204,8 @@ class MainWindow(QMainWindow):
     def _analyze(self):
         if not (self.state.cad_records and self.state.unique_parts and self.state.gerber_documents):
             QMessageBox.warning(self,"Missing input","Import CAD, BOM and Gerber before analysis."); return
-        self.state.dimension_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,self.state.gerber_documents,alignment=(self.dx,self.dy,self.da))
+        analysis_docs=[d for d in self.state.gerber_documents if d.layer!="Other / Ignore"]
+        self.state.dimension_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,analysis_docs,alignment=(self.dx,self.dy,self.da))
         for r,p in enumerate(self.state.unique_parts):
             x=self.state.dimension_results.get(p.mpn)
             if not x:continue
