@@ -9,7 +9,7 @@ def _write_rect(path,cx,cy,w,h):
 def test_silkscreen_preferred(tmp_path):
     silk=tmp_path/'a.GTO'; paste=tmp_path/'a.GTP'; _write_rect(silk,10,20,1.6,.8); _write_rect(paste,10,20,1.2,.6)
     r=derive_gerber_dimension('C1',10,20,'Top',[parse_gerber(silk),parse_gerber(paste)])
-    assert r.status=='GERBER DERIVED'; assert 'Silkscreen' in r.source; assert 1.59 < r.length_mm < 1.62; assert r.height_mm is None
+    assert r.status=='WAITING FOR USER ACCEPTANCE'; assert 'Silkscreen' in r.source; assert 1.59 < r.length_mm < 1.62; assert r.height_mm is None
 
 def test_paste_fallback(tmp_path):
     paste=tmp_path/'a.GTP'; _write_rect(paste,5,6,1.0,.5)
