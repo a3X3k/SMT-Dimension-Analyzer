@@ -10,7 +10,7 @@ class PCBWorkspace(QGraphicsView):
         self.setRenderHints(self.renderHints()|QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.ScrollHandDrag); self.setBackgroundBrush(QColor("#10151b"))
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.cad=[]; self.gerbers=[]; self.show_refs=True; self.dx=0.; self.dy=0.; self.angle=0.; self.selected_ref=""
+        self.cad=[]; self.gerbers=[]; self.show_refs=True; self.dx=0.; self.dy=0.; self.angle=0.; self.selected_ref=""; self.review_bbox=None
     def wheelEvent(self,e):
         f=1.18 if e.angleDelta().y()>0 else 1/1.18; self.scale(f,f)
     def set_data(self,cad=None,gerbers=None):
@@ -23,7 +23,7 @@ class PCBWorkspace(QGraphicsView):
     def fit_board(self):
         r=self.scene.itemsBoundingRect()
         if not r.isNull(): self.fitInView(r.adjusted(-5,-5,5,5),Qt.KeepAspectRatio)
-    def select_ref(self,ref): self.selected_ref=ref; self.redraw()
+    def select_ref(self,ref): self.selected_ref=ref; self.redraw()\n    def show_review_bbox(self,bbox): self.review_bbox=bbox; self.redraw()
     def _tx(self,x,y):
         a=math.radians(self.angle); return (x*math.cos(a)-y*math.sin(a)+self.dx, x*math.sin(a)+y*math.cos(a)+self.dy)
     def redraw(self):
@@ -48,7 +48,7 @@ class PCBWorkspace(QGraphicsView):
             self.scene.addLine(c.x-.9,-c.y,c.x+.9,-c.y,pen); self.scene.addLine(c.x,-c.y-.9,c.x,-c.y+.9,pen)
             if self.show_refs:
                 t=QGraphicsSimpleTextItem(c.ref); t.setBrush(QBrush(QColor("#e9eef5"))); t.setPos(c.x+.8,-c.y-.8); t.setFlag(t.ItemIgnoresTransformations); self.scene.addItem(t)
-        if self.scene.items(): self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-10,-10,10,10))
+        if self.review_bbox:\n            b=self.review_bbox; pen=QPen(QColor("#ff4d6d")); pen.setCosmetic(True); pen.setWidthF(2.5)\n            self.scene.addRect(b[0],-b[3],b[2]-b[0],b[3]-b[1],pen)\n        if self.scene.items(): self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-10,-10,10,10))
     def mouseDoubleClickEvent(self,e):
         item=self.itemAt(e.position().toPoint())
         while item:
