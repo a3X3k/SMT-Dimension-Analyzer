@@ -1,8 +1,13 @@
 def export_text(path, unique_parts, dimension_results=None):
     dimension_results=dimension_results or {}
     with open(path,"w",encoding="utf-8") as f:
-        f.write("PN/MPN\tREF\tBODY_L_MM\tBODY_W_MM\tBODY_H_MM\tPAD_PIN_COUNT_CANDIDATE\tPITCH_MM_CANDIDATE\tROWS\tCOLUMNS\tSOURCE\tSTATUS\tACCEPTED\n")
         for p in unique_parts:
             r=dimension_results.get(p.mpn)
             val=lambda n:"" if r is None or getattr(r,n,None) is None else str(getattr(r,n))
-            f.write("\t".join([p.mpn,p.representative_ref,val("length_mm"),val("width_mm"),val("height_mm"),val("pad_count"),val("pitch_mm"),val("pad_rows"),val("pad_columns"),getattr(r,"source","") if r else "",getattr(r,"status","NOT ACCEPTED") if r else "NOT ACCEPTED","YES" if getattr(r,"accepted",False) else "NO"])+"\n")
+            fields=[
+                f"PN={p.mpn}",f"REF={p.representative_ref}",f"LENGTH={val('length_mm')}",f"WIDTH={val('width_mm')}",
+                f"HEIGHT={val('height_mm')}",f"PAD_PIN_COUNT_CANDIDATE={val('pad_count')}",f"PITCH_MM_CANDIDATE={val('pitch_mm')}",
+                f"ROWS={val('pad_rows')}",f"COLUMNS={val('pad_columns')}",f"SOURCE={getattr(r,'source','') if r else ''}",
+                f"STATUS={getattr(r,'status','NOT ACCEPTED') if r else 'NOT ACCEPTED'}",f"ACCEPTED={'YES' if getattr(r,'accepted',False) else 'NO'}"
+            ]
+            f.write(",".join(fields)+"\n")
