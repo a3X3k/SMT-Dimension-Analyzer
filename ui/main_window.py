@@ -66,7 +66,7 @@ class MainWindow(QMainWindow):
     def _review_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"3. Component Review")
         self.table=QTableWidget(0,8); self.table.setHorizontalHeaderLabels(["Ref","MPN","Package/Type","Body L","Body W","Height","Pins/Pitch","Status"]); self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.table.itemSelectionChanged.connect(self._table_selected); l.addWidget(self.table,1)
+        self.table.itemSelectionChanged.connect(self._table_selected); l.addWidget(self.table,1)\n        self.review_info=QLabel("Analyze, then select a component to inspect its proposed body and paste geometry."); self.review_info.setWordWrap(True); l.addWidget(self.review_info)\n        adjust=QFormLayout(); self.manual_l=QDoubleSpinBox(); self.manual_w=QDoubleSpinBox()\n        for s in (self.manual_l,self.manual_w): s.setRange(0,100); s.setDecimals(4); s.setSingleStep(.01)\n        adjust.addRow("Adjusted body L (mm)",self.manual_l); adjust.addRow("Adjusted body W (mm)",self.manual_w); l.addLayout(adjust)\n        self.apply_adjust=QPushButton("Apply Manual L/W"); self.apply_adjust.clicked.connect(self._apply_adjust); l.addWidget(self.apply_adjust)
         self.lookup=QPushButton("Search selected MPN on Internet / Datasheet"); self.lookup.clicked.connect(self._lookup); l.addWidget(self.lookup)
         row=QHBoxLayout(); l.addLayout(row)
         self.analyze=QPushButton("Analyze Silkscreen / Paste"); self.analyze.clicked.connect(self._analyze); row.addWidget(self.analyze)
@@ -148,7 +148,14 @@ class MainWindow(QMainWindow):
         self.workspace.select_ref(ref)
     def _table_selected(self):
         r=self.table.currentRow()
-        if r>=0 and self.table.item(r,0): self.workspace.select_ref(self.table.item(r,0).text())
+        if r<0 or not self.table.item(r,0): return
+        self.workspace.select_ref(self.table.item(r,0).text())
+        if r>=len(self.state.unique_parts): return
+        p=self.state.unique_parts[r]; x=self.state.dimension_results.get(p.mpn)
+        if not x: return
+        self.workspace.show_review_bbox(getattr(x,"body_bbox",None))
+        self.manual_l.setValue(float(getattr(x,"length_mm",0) or 0)); self.manual_w.setValue(float(getattr(x,"width_mm",0) or 0))
+        self.review_info.setText(f"Ref {p.representative_ref} | {getattr(x,'source','')} | {getattr(x,'layer','')} | Body {getattr(x,'length_mm',None)} × {getattr(x,'width_mm',None)} mm | Paste pad/ball candidates {getattr(x,'pad_count',None)} | pitch {getattr(x,'pitch_mm',None)} mm | array {getattr(x,'pad_rows',None)} × {getattr(x,'pad_columns',None)}")
     def _lookup(self):
         r=self.table.currentRow()
         if r<0:return
@@ -164,19 +171,35 @@ class MainWindow(QMainWindow):
             x=self.state.dimension_results.get(p.mpn)
             if x:
                 self.table.setItem(r,3,QTableWidgetItem(str(getattr(x,"length_mm","") or ""))); self.table.setItem(r,4,QTableWidgetItem(str(getattr(x,"width_mm","") or "")))
-                self.table.setItem(r,7,QTableWidgetItem(getattr(x,"status","MANUAL REVIEW")))
+                self.table.setItem(r,6,QTableWidgetItem(f"{getattr(x,'pad_count',None) or ''} / {getattr(x,'pitch_mm',None) or ''}")); self.table.setItem(r,7,QTableWidgetItem(getattr(x,"status","MANUAL REVIEW")))
         QMessageBox.information(self,"Analysis","Silkscreen/paste proposals generated. Review visually and accept or reject each component. Pad/paste geometry is not automatically treated as physical lead/body geometry.")
 
+    def _apply_adjust(self):
+        r=self.table.currentRow()
+        if r<0 or r>=len(self.state.unique_parts): return
+        x=self.state.dimension_results.get(self.state.unique_parts[r].mpn)
+        if not x: return
+        x.length_mm=round(self.manual_l.value(),4); x.width_mm=round(self.manual_w.value(),4)
+        x.source="USER - Manual Body Adjustment"; x.confidence="USER CONFIRMED"; x.status="WAITING FOR USER ACCEPTANCE"; x.accepted=False
+        self.table.setItem(r,3,QTableWidgetItem(str(x.length_mm))); self.table.setItem(r,4,QTableWidgetItem(str(x.width_mm))); self.table.setItem(r,7,QTableWidgetItem(x.status))
     def _accept_dimension(self):
         r=self.table.currentRow()
-        if r>=0:self.table.setItem(r,7,QTableWidgetItem("USER ACCEPTED"))
+        if r<0 or r>=len(self.state.unique_parts): return
+        x=self.state.dimension_results.get(self.state.unique_parts[r].mpn)
+        if x:
+            x.accepted=True; x.status="USER ACCEPTED"
+            if "User Confirmed" not in x.source: x.source=(x.source+" - User Confirmed").strip(" -")
+        self.table.setItem(r,7,QTableWidgetItem("USER ACCEPTED"))
     def _reject_dimension(self):
         r=self.table.currentRow()
-        if r>=0:self.table.setItem(r,7,QTableWidgetItem("MANUAL REVIEW"))
+        if r<0 or r>=len(self.state.unique_parts): return
+        x=self.state.dimension_results.get(self.state.unique_parts[r].mpn)
+        if x: x.accepted=False; x.status="MANUAL REVIEW"
+        self.table.setItem(r,7,QTableWidgetItem("MANUAL REVIEW"))
     def _export(self):
         folder=QFileDialog.getExistingDirectory(self,"Export folder")
         if not folder:return
-        cad={c.ref:c for c in self.state.cad_records}; export_excel(Path(folder)/"Shape_Dimensions.xlsx",self.state.unique_parts,cad,self.state.dimension_results); export_text(Path(folder)/"Shape_Dimensions.txt",self.state.unique_parts,self.state.dimension_results)
+        cad={c.ref:c for c in self.state.cad_records}; accepted={k:v for k,v in self.state.dimension_results.items() if getattr(v,"accepted",False)}\n        export_excel(Path(folder)/"Shape_Dimensions.xlsx",self.state.unique_parts,cad,accepted); export_text(Path(folder)/"Shape_Dimensions.txt",self.state.unique_parts,accepted)
         QMessageBox.information(self,"Export","Created Shape_Dimensions.xlsx and Shape_Dimensions.txt")
 
 def run_app():
