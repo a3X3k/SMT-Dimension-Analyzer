@@ -10,7 +10,6 @@ from matching.representative_selector import select_cad_aware_representatives
 from dimensions.gerber_dimension import derive_project_dimensions
 from export.excel_export import export_excel
 from export.text_export import export_text
-from ui.mapping_dialog import ColumnMappingDialog
 from ui.pcb_workspace import PCBWorkspace
 from lookup.providers.web_search import lookup_links
 from lookup.mpn_lookup import lookup_mpn
@@ -44,8 +43,8 @@ class MainWindow(QMainWindow):
         self._files_tab(); self._layers_tab(); self._alignment_tab(); self._review_tab()
 
     def _files_tab(self):
-        w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"Files / Mapping")
-        l.addWidget(QLabel("<b>Imports are always available from the top toolbar.</b>"))
+        w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"Imported Data")
+        l.addWidget(QLabel("<b>Columns are detected automatically from file headings. No manual mapping is required.</b>"))
         self.cad_info=QLabel("CAD: not loaded"); self.cad_info.setWordWrap(True); l.addWidget(self.cad_info)
         self.bom_info=QLabel("BOM: not loaded"); self.bom_info.setWordWrap(True); l.addWidget(self.bom_info)
         self.gerber_info=QLabel("Gerber: not loaded"); self.gerber_info.setWordWrap(True); l.addWidget(self.gerber_info)
@@ -120,20 +119,24 @@ class MainWindow(QMainWindow):
         fn,_=QFileDialog.getOpenFileName(self,"Import CAD","","CAD (*.xlsx *.xls *.csv *.txt)")
         if not fn:return
         df,det=inspect_cad(fn)
-        fields=[("ref","Reference designator",True),("x","X coordinate",True),("y","Y coordinate",True),("rotation","Angle / rotation",True),("layer","Side / layer",False),("mpn","Part number (optional)",False)]
-        d=ColumnMappingDialog("CAD Column Mapping",list(df.columns),fields,det,self)
-        if d.exec()!=QDialog.Accepted:return
-        self.state.cad_path=Path(fn); self.state.cad_records=parse_cad(fn,d.mapping()); self.state.dimension_results={}
+        required=("ref","x","y","rotation")
+        if not all(det.get(k) for k in required):
+            missing=", ".join(k.upper() for k in required if not det.get(k))
+            QMessageBox.warning(self,"CAD headings not recognized",f"Required CAD heading(s) not recognized: {missing}.\n\nExpected headings include Reference/RefDes, X location, Y location, and Angle/Rotation.")
+            return
+        self.state.cad_path=Path(fn); self.state.cad_records=parse_cad(fn); self.state.dimension_results={}
         self.cad_info.setText(f"CAD: {Path(fn).name} — {len(self.state.cad_records)} placements")
         self.workspace.set_data(cad=self.state.cad_records); self.workspace.fit_board(); self._update_status()
 
     def import_bom(self):
         fn,_=QFileDialog.getOpenFileName(self,"Import BOM","","BOM (*.xlsx *.xls *.csv *.txt)")
         if not fn:return
-        df,det=inspect_bom(fn); fields=[("mpn","Part number / MPN",True),("ref","Reference designator",True)]
-        d=ColumnMappingDialog("BOM Column Mapping",list(df.columns),fields,det,self)
-        if d.exec()!=QDialog.Accepted:return
-        m=d.mapping(); self.state.bom_path=Path(fn); self.state.bom_records=parse_bom(fn,ref_col=m["ref"],pn_col=m["mpn"])
+        df,det=inspect_bom(fn)
+        if not det.get("mpn") or not det.get("ref"):
+            missing=", ".join(x for x in ("Part Number / MPN" if not det.get("mpn") else "", "Reference" if not det.get("ref") else "") if x)
+            QMessageBox.warning(self,"BOM headings not recognized",f"Required BOM heading(s) not recognized: {missing}.\n\nThe software maps BOM columns automatically from their headings.")
+            return
+        self.state.bom_path=Path(fn); self.state.bom_records=parse_bom(fn)
         self.state.unique_parts=group_unique_parts(self.state.bom_records); select_cad_aware_representatives(self.state.unique_parts,self.state.cad_records)
         cadrefs={c.ref.strip().upper() for c in self.state.cad_records}; matched=sum(any(r.strip().upper() in cadrefs for r in p.refs) for p in self.state.unique_parts)
         self.bom_info.setText(f"BOM: {Path(fn).name} — {len(self.state.unique_parts)} unique PNs; {matched} matched to CAD")
