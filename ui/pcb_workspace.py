@@ -10,16 +10,16 @@ class PCBWorkspace(QGraphicsView):
         self.setRenderHints(self.renderHints()|QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.ScrollHandDrag); self.setBackgroundBrush(QColor("#10151b"))
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.cad=[]; self.gerbers=[]; self.show_refs=True; self.dx=0.; self.dy=0.; self.angle=0.; self.selected_ref=""; self.review_bbox=None
+        self.cad=[]; self.gerbers=[]; self.visible_layers=set(); self.show_refs=True; self.dx=0.; self.dy=0.; self.angle=0.; self.selected_ref=""; self.review_bbox=None
     def wheelEvent(self,e):
         f=1.18 if e.angleDelta().y()>0 else 1/1.18; self.scale(f,f)
     def set_data(self,cad=None,gerbers=None):
         if cad is not None:self.cad=cad
-        if gerbers is not None:self.gerbers=gerbers
+        if gerbers is not None:\n            self.gerbers=gerbers; self.visible_layers={str(d.path) for d in gerbers}
         self.redraw()
     def set_alignment(self,dx,dy,angle):
         self.dx=float(dx); self.dy=float(dy); self.angle=float(angle); self.redraw()
-    def toggle_refs(self,on): self.show_refs=on; self.redraw()
+    def toggle_refs(self,on): self.show_refs=on; self.redraw()\n    def set_layer_visible(self,path,on):\n        key=str(path)\n        if on:self.visible_layers.add(key)\n        else:self.visible_layers.discard(key)\n        self.redraw()
     def fit_board(self):
         r=self.scene.itemsBoundingRect()
         if not r.isNull(): self.fitInView(r.adjusted(-5,-5,5,5),Qt.KeepAspectRatio)
