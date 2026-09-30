@@ -1,5 +1,5 @@
 from pathlib import Path
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QUrl,Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import *
 from models import ProjectState
@@ -13,6 +13,7 @@ from export.text_export import export_text
 from ui.mapping_dialog import ColumnMappingDialog
 from ui.pcb_workspace import PCBWorkspace
 from lookup.providers.web_search import lookup_links
+from lookup.mpn_lookup import lookup_mpn
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -30,6 +31,7 @@ class MainWindow(QMainWindow):
         self.gerber_btn=QPushButton("Import Gerber"); self.gerber_btn.clicked.connect(self.import_gerber); bar.addWidget(self.gerber_btn)
         self.fit=QPushButton("Fit Board"); self.fit.clicked.connect(lambda:self.workspace.fit_board()); bar.addWidget(self.fit)
         self.refs=QCheckBox("Ref Designators"); self.refs.setChecked(True); self.refs.toggled.connect(lambda v:self.workspace.toggle_refs(v)); bar.addWidget(self.refs)
+        self.mpn_top=QPushButton("Lookup MPN"); self.mpn_top.clicked.connect(self._lookup_structured); bar.addWidget(self.mpn_top)
         self.analyze_top=QPushButton("Analyze Dimensions"); self.analyze_top.clicked.connect(self._analyze); bar.addWidget(self.analyze_top)
         self.export_top=QPushButton("Export Excel + TXT"); self.export_top.clicked.connect(self._export); bar.addWidget(self.export_top)
         bar.addStretch()
@@ -92,8 +94,8 @@ class MainWindow(QMainWindow):
         prev=QPushButton("◀ Previous"); prev.clicked.connect(lambda:self._move_review(-1)); nav.addWidget(prev)
         self.ref_search=QLineEdit(); self.ref_search.setPlaceholderText("Find Ref / MPN"); self.ref_search.returnPressed.connect(self._find_component); nav.addWidget(self.ref_search,1)
         nxt=QPushButton("Next ▶"); nxt.clicked.connect(lambda:self._move_review(1)); nav.addWidget(nxt)
-        self.table=QTableWidget(0,8)
-        self.table.setHorizontalHeaderLabels(["Ref","MPN","Package/Type","Body L","Body W","Height","Pins/Pitch","Status"])
+        self.table=QTableWidget(0,10)
+        self.table.setHorizontalHeaderLabels(["Ref","MPN","Manufacturer","Package/Type","Body L","Body W","Height","Pins/Pitch","Source","Status"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows); self.table.itemSelectionChanged.connect(self._table_selected); l.addWidget(self.table,1)
         self.review_info=QLabel("Import CAD, BOM and Gerber, then Analyze Dimensions."); self.review_info.setWordWrap(True); l.addWidget(self.review_info)
         form=QFormLayout(); self.manual_l=QDoubleSpinBox(); self.manual_w=QDoubleSpinBox()
@@ -158,7 +160,7 @@ class MainWindow(QMainWindow):
     def _populate(self):
         self.table.setRowCount(len(self.state.unique_parts))
         for r,p in enumerate(self.state.unique_parts):
-            for col,val in enumerate([p.representative_ref,p.mpn,"","","","","","WAITING"]): self.table.setItem(r,col,QTableWidgetItem(val))
+            for col,val in enumerate([p.representative_ref,p.mpn,"","","","","","","","WAITING"]): self.table.setItem(r,col,QTableWidgetItem(val))
         self.table.resizeColumnsToContents()
 
     def _move_review(self,step):
@@ -192,6 +194,21 @@ class MainWindow(QMainWindow):
         self.workspace.show_review_bbox(getattr(x,"body_bbox",None))
         self.manual_l.setValue(float(getattr(x,"length_mm",0) or 0)); self.manual_w.setValue(float(getattr(x,"width_mm",0) or 0))
         self.review_info.setText(f"Ref {p.representative_ref} | {getattr(x,'source','')} | Body {getattr(x,'length_mm',None)} × {getattr(x,'width_mm',None)} mm | Status {getattr(x,'status','')}")
+
+    def _lookup_structured(self):
+        if not self.state.unique_parts:return
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            for r,p in enumerate(self.state.unique_parts):
+                data=lookup_mpn(p.mpn); self.state.mpn_lookup_results[p.mpn]=data
+                self.table.setItem(r,2,QTableWidgetItem(data.manufacturer))
+                self.table.setItem(r,3,QTableWidgetItem(data.package_type))
+                self.table.setItem(r,8,QTableWidgetItem(data.source or "MPN lookup"))
+                if data.status!="EXACT MPN MATCH" and not self.state.dimension_results.get(p.mpn):
+                    self.table.setItem(r,9,QTableWidgetItem(data.status))
+        finally:
+            QApplication.restoreOverrideCursor()
+        QMessageBox.information(self,"MPN Lookup","Structured lookup complete. Exact matches populate manufacturer/package/source. Unverified physical dimensions remain blank.")
 
     def _lookup(self):
         r=self.table.currentRow()
