@@ -65,6 +65,10 @@ class MainWindow(QMainWindow):
 
     def _review_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"Component Review")
+        nav=QHBoxLayout(); l.addLayout(nav)
+        prev=QPushButton("◀ Previous"); prev.clicked.connect(lambda:self._move_review(-1)); nav.addWidget(prev)
+        self.ref_search=QLineEdit(); self.ref_search.setPlaceholderText("Find Ref / MPN"); self.ref_search.returnPressed.connect(self._find_component); nav.addWidget(self.ref_search,1)
+        nxt=QPushButton("Next ▶"); nxt.clicked.connect(lambda:self._move_review(1)); nav.addWidget(nxt)
         self.table=QTableWidget(0,8)
         self.table.setHorizontalHeaderLabels(["Ref","MPN","Package/Type","Body L","Body W","Height","Pins/Pitch","Status"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows); self.table.itemSelectionChanged.connect(self._table_selected); l.addWidget(self.table,1)
@@ -134,6 +138,24 @@ class MainWindow(QMainWindow):
             for col,val in enumerate([p.representative_ref,p.mpn,"","","","","","WAITING"]): self.table.setItem(r,col,QTableWidgetItem(val))
         self.table.resizeColumnsToContents()
 
+    def _move_review(self,step):
+        if not self.table.rowCount(): return
+        r=self.table.currentRow()
+        r=(0 if r<0 else r+step)%self.table.rowCount()
+        self.table.selectRow(r); self._zoom_selected()
+
+    def _find_component(self):
+        q=self.ref_search.text().strip().upper()
+        if not q:return
+        for r in range(self.table.rowCount()):
+            if any(self.table.item(r,c) and q in self.table.item(r,c).text().upper() for c in (0,1)):
+                self.table.selectRow(r); self._zoom_selected(); return
+
+    def _zoom_selected(self):
+        r=self.table.currentRow()
+        if r<0 or r>=len(self.state.unique_parts):return
+        self.workspace.zoom_to_ref(self.state.unique_parts[r].representative_ref)
+
     def _select_ref(self,ref):
         for r in range(self.table.rowCount()):
             if self.table.item(r,0) and self.table.item(r,0).text()==ref: self.table.selectRow(r); break
@@ -159,7 +181,7 @@ class MainWindow(QMainWindow):
     def _analyze(self):
         if not (self.state.cad_records and self.state.unique_parts and self.state.gerber_documents):
             QMessageBox.warning(self,"Missing input","Import CAD, BOM and Gerber before analysis."); return
-        self.state.dimension_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,self.state.gerber_documents)
+        self.state.dimension_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,self.state.gerber_documents,alignment=(self.dx,self.dy,self.da))
         for r,p in enumerate(self.state.unique_parts):
             x=self.state.dimension_results.get(p.mpn)
             if not x:continue
