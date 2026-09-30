@@ -23,7 +23,13 @@ class PCBWorkspace(QGraphicsView):
     def fit_board(self):
         r=self.scene.itemsBoundingRect()
         if not r.isNull(): self.fitInView(r.adjusted(-5,-5,5,5),Qt.KeepAspectRatio)
-    def select_ref(self,ref): self.selected_ref=ref; self.redraw()\n    def show_review_bbox(self,bbox): self.review_bbox=bbox; self.redraw()
+    def select_ref(self,ref): self.selected_ref=ref; self.redraw()
+    def show_review_bbox(self,bbox): self.review_bbox=bbox; self.redraw()
+    def zoom_to_ref(self,ref):
+        self.selected_ref=ref; self.redraw()
+        c=next((x for x in self.cad if x.ref==ref),None)
+        if c and c.x is not None and c.y is not None:
+            self.centerOn(c.x,-c.y); self.resetTransform(); self.scale(18,18)
     def _tx(self,x,y):
         a=math.radians(self.angle); return (x*math.cos(a)-y*math.sin(a)+self.dx, x*math.sin(a)+y*math.cos(a)+self.dy)
     def redraw(self):
