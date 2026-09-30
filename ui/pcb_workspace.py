@@ -1,13 +1,13 @@
 import math
 from PySide6.QtCore import Qt,QPointF,Signal
-from PySide6.QtGui import QColor,QPen,QBrush,QPainterPath,QTransform
+from PySide6.QtGui import QColor,QPen,QBrush,QPainterPath,QTransform,QPainter
 from PySide6.QtWidgets import QGraphicsView,QGraphicsScene,QGraphicsSimpleTextItem,QGraphicsEllipseItem,QGraphicsPathItem,QGraphicsRectItem
 
 class PCBWorkspace(QGraphicsView):
     componentClicked=Signal(str)
     def __init__(self,parent=None):
         super().__init__(parent); self.scene=QGraphicsScene(self); self.setScene(self.scene)
-        self.setRenderHints(self.renderHints()|self.renderHints().Antialiasing)
+        self.setRenderHints(self.renderHints()|QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.ScrollHandDrag); self.setBackgroundBrush(QColor("#10151b"))
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.cad=[]; self.gerbers=[]; self.show_refs=True; self.dx=0.; self.dy=0.; self.angle=0.; self.selected_ref=""
