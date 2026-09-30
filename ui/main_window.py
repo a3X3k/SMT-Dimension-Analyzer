@@ -25,16 +25,17 @@ class MainWindow(QMainWindow):
     def _build(self):
         root=QWidget(); self.setCentralWidget(root); outer=QVBoxLayout(root)
         bar=QHBoxLayout(); outer.addLayout(bar)
-        self.cad_btn=QPushButton("Import CAD"); self.cad_btn.clicked.connect(self.import_cad); bar.addWidget(self.cad_btn)
-        self.bom_btn=QPushButton("Import BOM"); self.bom_btn.clicked.connect(self.import_bom); bar.addWidget(self.bom_btn)
-        self.gerber_btn=QPushButton("Import Gerber"); self.gerber_btn.clicked.connect(self.import_gerber); bar.addWidget(self.gerber_btn)
+        self.cad_btn=QPushButton("1. Import CAD"); self.cad_btn.clicked.connect(self.import_cad); bar.addWidget(self.cad_btn)
+        self.bom_btn=QPushButton("2. Import BOM"); self.bom_btn.clicked.connect(self.import_bom); bar.addWidget(self.bom_btn)
+        self.gerber_btn=QPushButton("3. Import Gerber"); self.gerber_btn.clicked.connect(self.import_gerber); bar.addWidget(self.gerber_btn)
         self.fit=QPushButton("Fit Board"); self.fit.clicked.connect(lambda:self.workspace.fit_board()); bar.addWidget(self.fit)
         self.refs=QCheckBox("Ref Designators"); self.refs.setChecked(True); self.refs.toggled.connect(lambda v:self.workspace.toggle_refs(v)); bar.addWidget(self.refs)
         self.mpn_top=QPushButton("Lookup MPN"); self.mpn_top.clicked.connect(self._lookup_structured); bar.addWidget(self.mpn_top)
-        self.analyze_top=QPushButton("Analyze Dimensions"); self.analyze_top.clicked.connect(self._analyze); bar.addWidget(self.analyze_top)
+        self.analyze_top=QPushButton("4. Analyze Dimensions"); self.analyze_top.clicked.connect(self._analyze); bar.addWidget(self.analyze_top)
         self.export_top=QPushButton("Export Excel + TXT"); self.export_top.clicked.connect(self._export); bar.addWidget(self.export_top)
         bar.addStretch()
         self.status_strip=QLabel(); outer.addWidget(self.status_strip)
+        self.next_step=QLabel("Next: import CAD data"); self.next_step.setStyleSheet("font-weight:600; padding:6px;"); outer.addWidget(self.next_step)
 
         split=QSplitter(); outer.addWidget(split,1)
         self.workspace=PCBWorkspace(); self.workspace.componentClicked.connect(self._select_ref); split.addWidget(self.workspace)
@@ -110,10 +111,15 @@ class MainWindow(QMainWindow):
         cad=len(self.state.cad_records); bom=len(self.state.unique_parts); ger=len(self.state.gerber_documents)
         reviewed=sum(1 for x in self.state.dimension_results.values() if getattr(x,"accepted",False))
         self.status_strip.setText(f"CAD: {cad or '—'} | BOM unique parts: {bom or '—'} | Gerber layers: {ger or '—'} | Alignment X {self.dx:+.4f}  Y {self.dy:+.4f}  A {self.da:+.3f}° | Reviewed: {reviewed}/{bom}")
-        self.bom_btn.setEnabled(bool(self.state.cad_records))
-        self.gerber_btn.setEnabled(bool(self.state.cad_records))
-        ready=bool(self.state.cad_records and self.state.unique_parts and self.state.gerber_documents)
-        self.analyze_top.setEnabled(ready); self.export_top.setEnabled(bool(self.state.unique_parts))
+        has_cad=bool(self.state.cad_records); has_bom=bool(self.state.unique_parts); has_gerber=bool(self.state.gerber_documents)
+        self.bom_btn.setEnabled(has_cad)
+        self.gerber_btn.setEnabled(has_cad)
+        ready=has_cad and has_bom and has_gerber
+        self.analyze_top.setEnabled(ready); self.export_top.setEnabled(has_bom)
+        if not has_cad: self.next_step.setText("Next: 1. Import CAD")
+        elif not has_bom: self.next_step.setText("CAD loaded ✓   Next: 2. Import BOM")
+        elif not has_gerber: self.next_step.setText("CAD ✓   BOM ✓   Next: 3. Import Gerber")
+        else: self.next_step.setText("CAD ✓   BOM ✓   Gerber ✓   Next: 4. Analyze Dimensions")
 
     def import_cad(self):
         fn,_=QFileDialog.getOpenFileName(self,"Import CAD","","CAD (*.xlsx *.xls *.csv *.txt)")
@@ -127,6 +133,10 @@ class MainWindow(QMainWindow):
         self.state.cad_path=Path(fn); self.state.cad_records=parse_cad(fn); self.state.dimension_results={}
         self.cad_info.setText(f"CAD: {Path(fn).name} — {len(self.state.cad_records)} placements")
         self.workspace.set_data(cad=self.state.cad_records); self.workspace.fit_board(); self._update_status()
+        if not self.state.cad_records:
+            QMessageBox.warning(self,"CAD import","No CAD placement records were found. Check the file headings and data.")
+        else:
+            self.tabs.setCurrentIndex(0)
 
     def import_bom(self):
         fn,_=QFileDialog.getOpenFileName(self,"Import BOM","","BOM (*.xlsx *.xls *.csv *.txt)")
