@@ -15,11 +15,17 @@ class PCBWorkspace(QGraphicsView):
         f=1.18 if e.angleDelta().y()>0 else 1/1.18; self.scale(f,f)
     def set_data(self,cad=None,gerbers=None):
         if cad is not None:self.cad=cad
-        if gerbers is not None:\n            self.gerbers=gerbers; self.visible_layers={str(d.path) for d in gerbers}
+        if gerbers is not None:
+            self.gerbers=gerbers; self.visible_layers={str(d.path) for d in gerbers}
         self.redraw()
     def set_alignment(self,dx,dy,angle):
         self.dx=float(dx); self.dy=float(dy); self.angle=float(angle); self.redraw()
-    def toggle_refs(self,on): self.show_refs=on; self.redraw()\n    def set_layer_visible(self,path,on):\n        key=str(path)\n        if on:self.visible_layers.add(key)\n        else:self.visible_layers.discard(key)\n        self.redraw()
+    def toggle_refs(self,on): self.show_refs=on; self.redraw()
+    def set_layer_visible(self,path,on):
+        key=str(path)
+        if on:self.visible_layers.add(key)
+        else:self.visible_layers.discard(key)
+        self.redraw()
     def fit_board(self):
         r=self.scene.itemsBoundingRect()
         if not r.isNull(): self.fitInView(r.adjusted(-5,-5,5,5),Qt.KeepAspectRatio)
@@ -54,7 +60,10 @@ class PCBWorkspace(QGraphicsView):
             self.scene.addLine(c.x-.9,-c.y,c.x+.9,-c.y,pen); self.scene.addLine(c.x,-c.y-.9,c.x,-c.y+.9,pen)
             if self.show_refs:
                 t=QGraphicsSimpleTextItem(c.ref); t.setBrush(QBrush(QColor("#e9eef5"))); t.setPos(c.x+.8,-c.y-.8); t.setFlag(t.ItemIgnoresTransformations); self.scene.addItem(t)
-        if self.review_bbox:\n            b=self.review_bbox; pen=QPen(QColor("#ff4d6d")); pen.setCosmetic(True); pen.setWidthF(2.5)\n            self.scene.addRect(b[0],-b[3],b[2]-b[0],b[3]-b[1],pen)\n        if self.scene.items(): self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-10,-10,10,10))
+        if self.review_bbox:
+            b=self.review_bbox; pen=QPen(QColor("#ff4d6d")); pen.setCosmetic(True); pen.setWidthF(2.5)
+            self.scene.addRect(b[0],-b[3],b[2]-b[0],b[3]-b[1],pen)
+        if self.scene.items(): self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-10,-10,10,10))
     def mouseDoubleClickEvent(self,e):
         item=self.itemAt(e.position().toPoint())
         while item:
