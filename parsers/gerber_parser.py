@@ -13,7 +13,7 @@ class Aperture:
 @dataclass
 class Primitive:
     kind:str; x:float|None=None; y:float|None=None; x2:float|None=None; y2:float|None=None
-    i:float|None=None; j:float|None=None; aperture:int|None=None; polarity:str="DARK"; region:bool=False
+    i:float|None=None; j:float|None=None; aperture:int|None=None; polarity:str="DARK"; region:bool=False; clockwise:bool|None=None
 @dataclass
 class GerberDocument:
     path:Path; layer:str; units:str="mm"; format_int:int=2; format_dec:int=4; zero_suppression:str="L"
@@ -101,7 +101,7 @@ def parse_gerber(path, layer_override=None):
         scale=25.4 if doc.units=='inch' else 1.0
         if d==1:
             kind='line' if interpolation=='LINEAR' else 'arc'
-            doc.primitives.append(Primitive(kind,x*scale,y*scale,nx*scale,ny*scale,(_coord(mi.group(1),doc)*scale if mi else None),(_coord(mj.group(1),doc)*scale if mj else None),aperture,polarity,region))
+            doc.primitives.append(Primitive(kind,x*scale,y*scale,nx*scale,ny*scale,(_coord(mi.group(1),doc)*scale if mi else None),(_coord(mj.group(1),doc)*scale if mj else None),aperture,polarity,region,(interpolation=="CW_ARC" if kind=="arc" else None)))
         elif d==3:
             doc.primitives.append(Primitive('flash',nx*scale,ny*scale,aperture=aperture,polarity=polarity,region=region))
         x,y=nx,ny
