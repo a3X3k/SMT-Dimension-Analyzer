@@ -31,3 +31,28 @@ def test_odb_body_fills_before_gerber():
     s=build_shape_model(part,cad=cad,dimension=dim)
     assert (s.body_length_mm,s.body_width_mm,s.body_height_mm)==(4.0,3.0,1.0)
     assert s.source=="ODB++"
+
+
+def test_exact_lookup_without_dimensions_does_not_claim_dimension_provenance():
+    part=UniquePart("ABC",["U1"],"U1")
+    lookup=MpnData(query="ABC",matched_mpn="ABC",manufacturer="Acme",package_type="QFN",source="DigiKey",source_url="https://example.invalid/product",confidence="HIGH",status="EXACT MPN MATCH")
+    s=build_shape_model(part,lookup=lookup)
+    assert s.manufacturer=="Acme" and s.package_type=="QFN"
+    assert s.body_length_mm is None and s.body_width_mm is None
+    assert s.source=="" and s.source_url=="" and s.confidence=="NONE"
+
+def test_exact_lookup_metadata_does_not_mask_gerber_dimension_source():
+    part=UniquePart("ABC",["U1"],"U1")
+    lookup=MpnData(query="ABC",matched_mpn="ABC",package_type="QFN",source="DigiKey",confidence="HIGH",status="EXACT MPN MATCH")
+    dim=GerberDimensionResult(ref="U1",length_mm=5.0,width_mm=4.0,source="Gerber Silkscreen - Proposed",confidence="MEDIUM")
+    s=build_shape_model(part,dimension=dim,lookup=lookup)
+    assert (s.body_length_mm,s.body_width_mm)==(5.0,4.0)
+    assert s.source=="Gerber Silkscreen - Proposed" and s.confidence=="MEDIUM"
+
+def test_mixed_lookup_and_odb_dimension_provenance_is_explicit():
+    part=UniquePart("ABC",["U1"],"U1")
+    lookup=MpnData(query="ABC",matched_mpn="ABC",body_height_mm=1.0,source="Manufacturer",confidence="HIGH",status="EXACT MPN MATCH")
+    cad=CadRecord("U1",raw={"source":"ODB++","length_mm":4.0,"width_mm":3.0})
+    s=build_shape_model(part,cad=cad,lookup=lookup)
+    assert (s.body_length_mm,s.body_width_mm,s.body_height_mm)==(4.0,3.0,1.0)
+    assert s.source=="Manufacturer + ODB++" and s.confidence=="HIGH"
