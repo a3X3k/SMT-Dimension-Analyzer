@@ -44,11 +44,28 @@ def _num(s):
     except:return None
 
 def _detect_units(root: Path):
-    """Detect an explicit ODB++ length unit without guessing."""
-    patterns=[
-        re.compile(r'(?im)^\s*UNITS?\s*[=:]\s*(MM|MILLIMETERS?|INCH(?:ES)?|IN|MILS?)\b'),
-        re.compile(r'(?im)^\s*(MM|MILLIMETERS?|INCH(?:ES)?|IN|MILS?)\s*
-def _parse_component_line(line, side, source_file):
+    patterns=[re.compile(r'(?im)^\\s*UNITS?\\s*[=:]\\s*(MM|INCH|IN|MIL)\\b')]
+    found=set()
+    for name in ('matrix','misc','info'):
+        for p in root.rglob(name):
+            if not p.is_file(): continue
+            try: text=p.read_text(errors='replace')[:1000000]
+            except Exception: continue
+            for pat in patterns:
+                for m in pat.finditer(text):
+                    u=m.group(1).upper(); found.add('MM' if u=='MM' else ('MIL' if u=='MIL' else 'INCH'))
+    return found
+
+def _scale_to_mm(units):
+    return {'MM':1.0,'INCH':25.4,'MIL':0.0254}.get(units)
+
+def _convert_component_to_mm(c, scale):
+    for name in ('x','y','length_mm','width_mm','height_mm'):
+        v=getattr(c,name)
+        if v is not None: setattr(c,name,v*scale)
+    c.raw=dict(c.raw or {}); c.raw['source_units']='MM' if scale==1.0 else ('INCH' if scale==25.4 else 'MIL')
+    return c
+
     kv={k.upper():v.strip('"') for k,v in re.findall(r'([A-Za-z_]+)\s*=\s*("[^"]*"|\S+)',line)}
     if kv:
         ref=kv.get('REF') or kv.get('REFDES') or kv.get('NAME')
