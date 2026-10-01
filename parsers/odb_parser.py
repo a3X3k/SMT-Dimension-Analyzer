@@ -44,7 +44,7 @@ def _num(s):
     except:return None
 
 def _detect_units(root: Path):
-    patterns=[re.compile(r'(?im)^\\s*UNITS?\\s*[=:]\\s*(MM|INCH|IN|MIL)\\b')]
+    patterns=[re.compile(r'(?im)^\s*UNITS?\s*[=:]\s*(MM|INCH|IN|MIL)\b')]
     found=set()
     for name in ('matrix','misc','info'):
         for p in root.rglob(name):
