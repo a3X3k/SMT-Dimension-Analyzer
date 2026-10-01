@@ -9,7 +9,7 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None):
     for p in unique_parts:
         r=dimension_results.get(p.mpn)
         ws.append([p.mpn,p.representative_ref,"","",getattr(r,"length_mm",None),getattr(r,"width_mm",None),getattr(r,"height_mm",None),"","",getattr(r,"pad_count",None),getattr(r,"pitch_mm",None),getattr(r,"pad_rows",None),getattr(r,"pad_columns",None),getattr(r,"source",""),"",getattr(r,"confidence",""),getattr(r,"status","NOT ACCEPTED"),"YES" if getattr(r,"accepted",False) else "NO",getattr(r,"remarks","")])
-    v=wb.create_sheet("Location Verification"); v.append(["PN","Ref","CAD X","CAD Y","CAD Rotation","Gerber X","Gerber Y","Delta X","Delta Y","Status"])
+    v=wb.create_sheet("Location Verification"); v.append(["PN","Ref","CAD X (mm)","CAD Y (mm)","CAD Rotation (deg)","Gerber X (mm)","Gerber Y (mm)","Delta X (mm)","Delta Y (mm)","Status"])
     for p in unique_parts:
         c=cad_by_ref.get(p.representative_ref); r=dimension_results.get(p.mpn); gx=getattr(r,"gerber_x",None); gy=getattr(r,"gerber_y",None); cx=getattr(c,"x",None); cy=getattr(c,"y",None)
         dx=round(abs(cx-gx),4) if cx is not None and gx is not None else None; dy=round(abs(cy-gy),4) if cy is not None and gy is not None else None
