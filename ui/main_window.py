@@ -8,7 +8,7 @@ from parsers.odb_parser import parse_odb
 from parsers.bom_parser import inspect_bom,parse_bom,group_unique_parts
 from parsers.gerber_parser import parse_gerber_files
 from matching.representative_selector import select_cad_aware_representatives
-from dimensions.gerber_dimension import derive_project_dimensions
+from dimensions.gerber_dimension import derive_project_dimensions\nfrom dimensions.shape_model import build_project_shapes
 from export.excel_export import export_excel
 from export.text_export import export_text
 from ui.pcb_workspace import PCBWorkspace
@@ -287,14 +287,14 @@ class MainWindow(QMainWindow):
         if not (self.state.cad_records and self.state.unique_parts and self.state.gerber_documents):
             QMessageBox.warning(self,"Missing input","Import CAD, BOM and Gerber before analysis."); return
         analysis_docs=[d for d in self.state.gerber_documents if d.layer!="Other / Ignore"]
-        self.state.dimension_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,analysis_docs,alignment=(self.dx,self.dy,self.da))
+        self.state.dimension_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,analysis_docs,alignment=(self.dx,self.dy,self.da))\n        self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         for r,p in enumerate(self.state.unique_parts):
             x=self.state.dimension_results.get(p.mpn)
             if not x:continue
             self.table.setItem(r,4,QTableWidgetItem(str(getattr(x,"length_mm","") or ""))); self.table.setItem(r,5,QTableWidgetItem(str(getattr(x,"width_mm","") or "")))
             self.table.setItem(r,6,QTableWidgetItem(str(getattr(x,"height_mm","") or "")))
             self.table.setItem(r,7,QTableWidgetItem(f"{getattr(x,'pad_count',None) or ''} / {getattr(x,'pitch_mm',None) or ''}"))
-            self.table.setItem(r,8,QTableWidgetItem(getattr(x,"source","")))
+            shape=self.state.shape_models.get(p.mpn)\n            if shape and shape.package_type:self.table.setItem(r,3,QTableWidgetItem(f"{shape.package_type} [{shape.package_family}]"))\n            elif shape:self.table.setItem(r,3,QTableWidgetItem(shape.package_family))\n            self.table.setItem(r,8,QTableWidgetItem(getattr(x,"source","")))
             self.table.setItem(r,9,QTableWidgetItem(getattr(x,"status","MANUAL REVIEW")))
         self._update_status()
 
@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
         folder=QFileDialog.getExistingDirectory(self,"Export folder")
         if not folder:return
         cad={c.ref:c for c in self.state.cad_records}; accepted={k:v for k,v in self.state.dimension_results.items() if getattr(v,"accepted",False)}
-        export_excel(Path(folder)/"Shape_Dimensions.xlsx",self.state.unique_parts,cad,accepted); export_text(Path(folder)/"Shape_Dimensions.txt",self.state.unique_parts,accepted)
+        export_excel(Path(folder)/"Shape_Dimensions.xlsx",self.state.unique_parts,cad,accepted); export_text(Path(folder)/"Shape_Dimensions.txt",self.state.unique_parts,accepted,self.state.shape_models)
         QMessageBox.information(self,"Export","Created Shape_Dimensions.xlsx and Shape_Dimensions.txt")
 
 def run_app():
