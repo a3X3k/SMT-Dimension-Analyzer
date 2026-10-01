@@ -77,6 +77,18 @@ def _convert_component_to_mm(c, scale):
             return OdbComponent(ref=toks[1],x=float(toks[2]),y=float(toks[3]),rotation=_num(toks[4]) if len(toks)>4 else None,side=side,package=toks[5] if len(toks)>5 else '',source_file=source_file,raw={'line':line})
     return None
 
+def _parse_component_line(line, side, source_file):
+    kv={k.upper():v.strip('"') for k,v in re.findall(r'([A-Za-z_]+)\\s*=\\s*("[^"]*"|\\S+)',line)}
+    if kv:
+        ref=kv.get('REF') or kv.get('REFDES') or kv.get('NAME')
+        if ref:
+            return OdbComponent(ref=ref,x=_num(kv.get('X')),y=_num(kv.get('Y')),rotation=_num(kv.get('ROT') or kv.get('ROTATION')),side=(kv.get('SIDE') or side).upper(),package=kv.get('PKG') or kv.get('PACKAGE') or '',mpn=kv.get('MPN') or kv.get('PART') or '',height_mm=_num(kv.get('HEIGHT') or kv.get('H')),length_mm=_num(kv.get('LENGTH') or kv.get('L')),width_mm=_num(kv.get('WIDTH') or kv.get('W')),source_file=source_file,raw=kv)
+    toks=line.split()
+    if toks and toks[0].upper() in {'CMP','COMP','COMPONENT','C'} and len(toks)>=4:
+        if _num(toks[2]) is not None and _num(toks[3]) is not None:
+            return OdbComponent(ref=toks[1],x=float(toks[2]),y=float(toks[3]),rotation=_num(toks[4]) if len(toks)>4 else None,side=side,package=toks[5] if len(toks)>5 else '',source_file=source_file,raw={'line':line})
+    return None
+
 def _parse_components_file(path: Path, side: str, warnings):
     out=[]
     try: text=path.read_text(errors='replace')
@@ -131,98 +143,6 @@ def parse_odb(path) -> OdbDocument:
             # Keep identity/package metadata but never expose ambiguous numbers as mm.
             for c in doc.components:
                 c.x=c.y=c.length_mm=c.width_mm=c.height_mm=None
-        if not doc.jobs: doc.warnings.append('No canonical jobs/<job>/steps layout found.')
-        if not doc.components: doc.warnings.append('No supported semantic component records found; manual review required.')
-        seen=set(); unique=[]
-        for c in doc.components:
-            k=(c.side.upper(),c.ref.upper())
-            if k not in seen: seen.add(k); unique.append(c)
-        doc.components=unique
-        return doc
-    finally:
-        if tmp: shutil.rmtree(tmp,ignore_errors=True)
-
-def parse_odb_dimensions(path):
-    doc=parse_odb(path)
-    return {"status":"ODB++" if doc.components else "NOT AVAILABLE / MANUAL REVIEW","components":doc.components,"warnings":doc.warnings,"jobs":doc.jobs,"steps":doc.steps}
-),
-    ]
-    found=set()
-    # Unit declarations normally live in matrix/misc/info style metadata.
-    candidates=[]
-    for name in ('matrix','misc','info'):
-        candidates.extend(p for p in root.rglob(name) if p.is_file())
-    for p in candidates:
-        try:text=p.read_text(errors='replace')[:1000000]
-        except Exception:continue
-        for pat in patterns:
-            for m in pat.finditer(text):
-                u=m.group(1).upper()
-                found.add('MM' if u.startswith('MM') else ('MIL' if u.startswith('MIL') else 'INCH'))
-    return found
-
-def _scale_to_mm(units):
-    return {'MM':1.0,'INCH':25.4,'MIL':0.0254}.get(units)
-
-def _convert_component_to_mm(c, scale):
-    for name in ('x','y','length_mm','width_mm','height_mm'):
-        v=getattr(c,name)
-        if v is not None:setattr(c,name,v*scale)
-    c.raw=dict(c.raw or {}); c.raw['source_units']=c.raw.get('source_units') or ('MM' if scale==1 else ('INCH' if scale==25.4 else 'MIL'))
-    return c
-
-def _parse_component_line(line, side, source_file):
-    kv={k.upper():v.strip('"') for k,v in re.findall(r'([A-Za-z_]+)\s*=\s*("[^"]*"|\S+)',line)}
-    if kv:
-        ref=kv.get('REF') or kv.get('REFDES') or kv.get('NAME')
-        if ref:
-            return OdbComponent(ref=ref,x=_num(kv.get('X')),y=_num(kv.get('Y')),rotation=_num(kv.get('ROT') or kv.get('ROTATION')),side=(kv.get('SIDE') or side).upper(),package=kv.get('PKG') or kv.get('PACKAGE') or '',mpn=kv.get('MPN') or kv.get('PART') or '',height_mm=_num(kv.get('HEIGHT') or kv.get('H')),length_mm=_num(kv.get('LENGTH') or kv.get('L')),width_mm=_num(kv.get('WIDTH') or kv.get('W')),source_file=source_file,raw=kv)
-    toks=line.split()
-    if toks and toks[0].upper() in {'CMP','COMP','COMPONENT','C'} and len(toks)>=4:
-        if _num(toks[2]) is not None and _num(toks[3]) is not None:
-            return OdbComponent(ref=toks[1],x=float(toks[2]),y=float(toks[3]),rotation=_num(toks[4]) if len(toks)>4 else None,side=side,package=toks[5] if len(toks)>5 else '',source_file=source_file,raw={'line':line})
-    return None
-
-def _parse_components_file(path: Path, side: str, warnings):
-    out=[]
-    try: text=path.read_text(errors='replace')
-    except Exception as e: warnings.append(f"Cannot read {path}: {e}"); return out
-    for line in text.splitlines():
-        s=line.strip()
-        if not s or s.startswith(('#',';')): continue
-        c=_parse_component_line(s,side,str(path))
-        if c: out.append(c)
-    return out
-
-def parse_odb(path) -> OdbDocument:
-    source=select_odb_source(path); tmp=None
-    if source.is_file():
-        tmp=Path(tempfile.mkdtemp(prefix='smt_odb_')); _safe_extract(source,tmp); root=tmp
-    else: root=source
-    doc=OdbDocument(root=source)
-    try:
-        for jobsdir in root.rglob('jobs'):
-            if not jobsdir.is_dir(): continue
-            for job in jobsdir.iterdir():
-                if not job.is_dir(): continue
-                doc.jobs.append(job.name)
-                steps=job/'steps'
-                if not steps.is_dir(): continue
-                for step in steps.iterdir():
-                    if not step.is_dir(): continue
-                    doc.steps.append(f"{job.name}/{step.name}")
-                    layers=step/'layers'
-                    if layers.is_dir():
-                        for layer in layers.iterdir():
-                            lname=layer.name.lower()
-                            side='TOP' if ('top' in lname or lname.endswith('_+_top')) else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
-                            comp=layer/'components'
-                            if comp.is_file() and ('comp' in lname or side): doc.components.extend(_parse_components_file(comp,side,doc.warnings))
-                    if not doc.components:
-                        for comp in step.rglob('components'):
-                            if comp.is_file():
-                                lname=str(comp.parent).lower(); side='TOP' if 'top' in lname else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
-                                doc.components.extend(_parse_components_file(comp,side,doc.warnings))
         if not doc.jobs: doc.warnings.append('No canonical jobs/<job>/steps layout found.')
         if not doc.components: doc.warnings.append('No supported semantic component records found; manual review required.')
         seen=set(); unique=[]
