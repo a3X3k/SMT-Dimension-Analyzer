@@ -15,7 +15,7 @@ def export_text(path, unique_parts, dimension_results=None, shape_models=None):
                 body_l=body_w=body_h=""
             row=[
                 p.mpn,p.representative_ref,v(s,"manufacturer"),v(s,"package_type"),v(s,"package_family"),
-                body_l or v(r,"length_mm"),body_w or v(r,"width_mm"),body_h or v(r,"height_mm"),
+                body_l or (v(r,"length_mm") if accepted else ""),body_w or (v(r,"width_mm") if accepted else ""),body_h or (v(r,"height_mm") if accepted else ""),
                 v(s,"overall_length_mm"),v(s,"overall_width_mm"),v(s,"pin_count"),v(s,"pin_pitch_mm"),v(s,"lead_width_mm"),v(s,"lead_length_mm"),
                 v(s,"bga_rows"),v(s,"bga_columns"),v(s,"ball_pitch_mm"),v(r,"length_mm"),v(r,"width_mm"),
                 v(s,"source") or v(r,"source"),v(s,"source_url"),v(s,"confidence") or v(r,"confidence"),v(s,"verification") or v(r,"status"),
