@@ -85,12 +85,7 @@ def build_shape_model(part,cad=None,dimension=None,lookup=None):
         s.remarks=getattr(dimension,"remarks","")
         # Paste-derived values remain candidates only; do not convert them to
         # physical lead/ball dimensions automatically.
-        if s.pin_count is None and family!="UNKNOWN":s.pin_count=getattr(dimension,"pad_count",None)
-        if s.pin_pitch_mm is None and family in {"SOIC/TSSOP","QFN/DFN","QFP"}:s.pin_pitch_mm=getattr(dimension,"pitch_mm",None)
-        if family=="BGA":
-            if s.bga_rows is None:s.bga_rows=getattr(dimension,"pad_rows",None)
-            if s.bga_columns is None:s.bga_columns=getattr(dimension,"pad_columns",None)
-            if s.ball_pitch_mm is None:s.ball_pitch_mm=getattr(dimension,"pitch_mm",None)
+        pass
     if s.confidence=="NONE" and fam_conf!="NONE":s.confidence=fam_conf
     return s
 
