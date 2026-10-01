@@ -17,7 +17,8 @@ class OdbComponent:
 @dataclass
 class OdbDocument:
     root: Path; components: list[OdbComponent]=field(default_factory=list); jobs: list[str]=field(default_factory=list)
-    steps: list[str]=field(default_factory=list); warnings: list[str]=field(default_factory=list)\n    units: str="UNKNOWN"
+    steps: list[str]=field(default_factory=list); warnings: list[str]=field(default_factory=list)
+    units: str="UNKNOWN"
 
 def select_odb_source(path):
     p=Path(path)
