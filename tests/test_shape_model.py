@@ -82,3 +82,13 @@ def test_txt_export_promotes_accepted_gerber_body(tmp_path):
     row=dict(zip(headers.split("\t"),values.split("\t")))
     assert row["BODY_L_MM"]=="5.0" and row["BODY_W_MM"]=="4.0"
     assert row["USER_ACCEPTED"]=="YES"
+
+
+def test_review_ui_labels_distinguish_paste_candidates_and_provenance():
+    from pathlib import Path
+    source=Path("ui/main_window.py").read_text(encoding="utf-8")
+    assert "Paste Pads / Pitch Candidate (mm)" in source
+    assert "Dimension Source / Confidence" in source
+    assert "Review Status" in source
+    assert "Confidence {getattr(x,'confidence','') or 'NONE'}" in source
+    assert "Accepted {'YES' if getattr(x,'accepted',False) else 'NO'}" in source
