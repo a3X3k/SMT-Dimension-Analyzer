@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
 
     def _assign_layer(self,doc,value):
         doc.layer=value
-        self.state.dimension_results={}
+        self.state.dimension_results={}; self.state.shape_models={}
         self.gerber_info.setText("Gerber: "+", ".join(f"{d.path.name} [{d.layer}]" for d in self.state.gerber_documents))
         self.workspace.redraw(); self._update_status()
 
@@ -145,7 +145,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self,"ODB++ import",f"ODB++ was opened, but no supported component placements were found.\n\n{details}")
             return False
         self.state.odb_path=Path(path); self.state.cad_path=None
-        self.state.cad_records=records; self.state.dimension_results={}
+        self.state.cad_records=records; self.state.dimension_results={}; self.state.shape_models={}
         self.cad_info.setText(f"CAD: {Path(path).name} [ODB++] — {len(records)} placements; {len(doc.jobs)} job(s), {len(doc.steps)} step(s) — working units: mm")
         self.workspace.set_data(cad=records); self.workspace.fit_board(); self._update_status()
         self.tabs.setCurrentIndex(0)
@@ -179,7 +179,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self,"CAD headings not recognized",f"Required CAD heading(s) not recognized: {missing}.\n\nExpected headings include Reference/RefDes, X location, Y location, and Angle/Rotation.")
             return
         self.state.cad_path=Path(fn); self.state.odb_path=None
-        self.state.cad_records=parse_cad(fn); self.state.dimension_results={}
+        self.state.cad_records=parse_cad(fn); self.state.dimension_results={}; self.state.shape_models={}
         self.cad_info.setText(f"CAD: {Path(fn).name} — {len(self.state.cad_records)} placements — units: mm")
         self.workspace.set_data(cad=self.state.cad_records); self.workspace.fit_board(); self._update_status()
         if not self.state.cad_records:
@@ -199,12 +199,12 @@ class MainWindow(QMainWindow):
         self.state.unique_parts=group_unique_parts(self.state.bom_records); select_cad_aware_representatives(self.state.unique_parts,self.state.cad_records)
         cadrefs={c.ref.strip().upper() for c in self.state.cad_records}; matched=sum(any(r.strip().upper() in cadrefs for r in p.refs) for p in self.state.unique_parts)
         self.bom_info.setText(f"BOM: {Path(fn).name} — {len(self.state.unique_parts)} unique PNs; {matched} matched to CAD")
-        self.state.dimension_results={}; self._populate(); self._update_status()
+        self.state.dimension_results={}; self.state.shape_models={}; self._populate(); self._update_status()
 
     def import_gerber(self):
         files,_=QFileDialog.getOpenFileNames(self,"Import Gerber Layers","","Gerber (*.GTL *.GBL *.GTO *.GBO *.GTP *.GBP *.gbr *.ger *.pho *.art);;All Files (*)")
         if not files:return
-        self.state.gerber_paths=[Path(x) for x in files]; self.state.gerber_documents=parse_gerber_files(files); self.state.dimension_results={}
+        self.state.gerber_paths=[Path(x) for x in files]; self.state.gerber_documents=parse_gerber_files(files); self.state.dimension_results={}; self.state.shape_models={}
         self.gerber_info.setText("Gerber: "+", ".join(f"{d.path.name} [{d.layer}]" for d in self.state.gerber_documents))
         self.workspace.set_data(gerbers=self.state.gerber_documents); self._refresh_layers(); self.workspace.fit_board(); self._update_status()
 
@@ -216,7 +216,7 @@ class MainWindow(QMainWindow):
         self.dx=self.xoff.value(); self.dy=self.yoff.value(); self.da=self.aoff.value()
         self.workspace.set_alignment(self.dx,self.dy,self.da)
         if self.state.dimension_results:
-            self.state.dimension_results={}
+            self.state.dimension_results={}; self.state.shape_models={}
             for r in range(self.table.rowCount()): self.table.setItem(r,9,QTableWidgetItem("RE-ANALYZE AFTER ALIGNMENT"))
         self._update_status()
 
@@ -274,6 +274,7 @@ class MainWindow(QMainWindow):
                     self.table.setItem(r,9,QTableWidgetItem(data.status))
         finally:
             QApplication.restoreOverrideCursor()
+        self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         QMessageBox.information(self,"MPN Lookup","Structured lookup complete. Exact matches populate manufacturer/package/source. Unverified physical dimensions remain blank.")
 
     def _lookup(self):
@@ -309,6 +310,7 @@ class MainWindow(QMainWindow):
         x=self.state.dimension_results.get(self.state.unique_parts[r].mpn)
         if not x:return
         x.length_mm=round(self.manual_l.value(),4); x.width_mm=round(self.manual_w.value(),4); x.source="USER - Manual Body Adjustment"; x.confidence="USER CONFIRMED"; x.status="WAITING FOR USER ACCEPTANCE"; x.accepted=False
+        self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         self.table.setItem(r,4,QTableWidgetItem(str(x.length_mm))); self.table.setItem(r,5,QTableWidgetItem(str(x.width_mm))); self.table.setItem(r,8,QTableWidgetItem(x.source)); self.table.setItem(r,9,QTableWidgetItem(x.status)); self._update_status()
 
     def _accept_dimension(self):
@@ -318,6 +320,7 @@ class MainWindow(QMainWindow):
         if x:
             x.accepted=True; x.status="USER ACCEPTED"
             if "User Confirmed" not in x.source:x.source=(x.source+" - User Confirmed").strip(" -")
+            self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
             self.table.setItem(r,9,QTableWidgetItem(x.status)); self._update_status()
 
     def _reject_dimension(self):
@@ -325,11 +328,13 @@ class MainWindow(QMainWindow):
         if r<0 or r>=len(self.state.unique_parts):return
         x=self.state.dimension_results.get(self.state.unique_parts[r].mpn)
         if x:x.accepted=False; x.status="MANUAL REVIEW"
+        self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         self.table.setItem(r,9,QTableWidgetItem("MANUAL REVIEW")); self._update_status()
 
     def _export(self):
         folder=QFileDialog.getExistingDirectory(self,"Export folder")
         if not folder:return
+        self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         cad={c.ref:c for c in self.state.cad_records}; accepted={k:v for k,v in self.state.dimension_results.items() if getattr(v,"accepted",False)}
         export_excel(Path(folder)/"Shape_Dimensions.xlsx",self.state.unique_parts,cad,accepted); export_text(Path(folder)/"Shape_Dimensions.txt",self.state.unique_parts,accepted,self.state.shape_models)
         QMessageBox.information(self,"Export","Created Shape_Dimensions.xlsx and Shape_Dimensions.txt")
