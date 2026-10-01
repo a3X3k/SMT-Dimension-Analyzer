@@ -37,4 +37,4 @@ def test_export_framework(tmp_path):
     x=tmp_path/'Shape_Dimensions.xlsx'; t=tmp_path/'Shape_Dimensions.txt'
     export_excel(x,parts); export_text(t,parts)
     wb=load_workbook(x); assert wb.sheetnames==['Shape Dimensions','Location Verification','Processing Log']
-    assert 'PN=P1' in t.read_text()
+    text=t.read_text(); assert text.startswith('MPN\\tREF\\t') and 'P1\\tC1\\t' in text
