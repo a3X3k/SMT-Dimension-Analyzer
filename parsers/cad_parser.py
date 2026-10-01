@@ -39,7 +39,7 @@ def parse_cad(path, mapping=None):
         ref=str(row[cols["ref"]]).strip()
         if not ref: continue
         get=lambda k: str(row[cols[k]]).strip() if cols.get(k) else ""
-        out.append(CadRecord(ref=ref,mpn=get("mpn"),x=_float(get("x")),y=_float(get("y")),rotation=_float(get("rotation")),layer=get("layer"),raw=row.to_dict()))
+        out.append(CadRecord(ref=ref,mpn=get("mpn"),x=_float(get("x")),y=_float(get("y")),rotation=_float(get("rotation")),layer=get("layer"),raw={**row.to_dict(),"_engineering_units":"mm"}))
     return out
 
 def inspect_cad(path):
