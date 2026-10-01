@@ -141,11 +141,8 @@ class MainWindow(QMainWindow):
             for x in doc.components if x.ref
         ]
         if not records:
-            details="
-".join(doc.warnings) if doc.warnings else "No component placement records were found."
-            QMessageBox.warning(self,"ODB++ import",f"ODB++ was opened, but no supported component placements were found.
-
-{details}")
+            details="\n".join(doc.warnings) if doc.warnings else "No component placement records were found."
+            QMessageBox.warning(self,"ODB++ import",f"ODB++ was opened, but no supported component placements were found.\n\n{details}")
             return False
         self.state.odb_path=Path(path); self.state.cad_path=None
         self.state.cad_records=records; self.state.dimension_results={}
@@ -179,9 +176,7 @@ class MainWindow(QMainWindow):
         required=("ref","x","y","rotation")
         if not all(det.get(k) for k in required):
             missing=", ".join(k.upper() for k in required if not det.get(k))
-            QMessageBox.warning(self,"CAD headings not recognized",f"Required CAD heading(s) not recognized: {missing}.
-
-Expected headings include Reference/RefDes, X location, Y location, and Angle/Rotation.")
+            QMessageBox.warning(self,"CAD headings not recognized",f"Required CAD heading(s) not recognized: {missing}.\n\nExpected headings include Reference/RefDes, X location, Y location, and Angle/Rotation.")
             return
         self.state.cad_path=Path(fn); self.state.odb_path=None
         self.state.cad_records=parse_cad(fn); self.state.dimension_results={}
@@ -198,9 +193,7 @@ Expected headings include Reference/RefDes, X location, Y location, and Angle/Ro
         df,det=inspect_bom(fn)
         if not det.get("mpn") or not det.get("ref"):
             missing=", ".join(x for x in ("Part Number / MPN" if not det.get("mpn") else "", "Reference" if not det.get("ref") else "") if x)
-            QMessageBox.warning(self,"BOM headings not recognized",f"Required BOM heading(s) not recognized: {missing}.
-
-The software maps BOM columns automatically from their headings.")
+            QMessageBox.warning(self,"BOM headings not recognized",f"Required BOM heading(s) not recognized: {missing}.\n\nThe software maps BOM columns automatically from their headings.")
             return
         self.state.bom_path=Path(fn); self.state.bom_records=parse_bom(fn)
         self.state.unique_parts=group_unique_parts(self.state.bom_records); select_cad_aware_representatives(self.state.unique_parts,self.state.cad_records)
