@@ -46,6 +46,6 @@ def test_component_rotation_does_not_inflate_body_size(tmp_path):
 
 def test_global_alignment_rotation_does_not_change_physical_size(tmp_path):
     silk=tmp_path/'aligned.GTO'; _write_rotated_rect(silk,10,20,4.0,2.0,30)
-    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(silk)],search_radius_mm=5.0,cad_rotation=60.0,alignment=(0.0,0.0,30.0))
+    # Gerber center (10,20) rotated +30 deg into CAD space; CAD component rotation is 30+30=60 deg.\n    from math import cos,sin,radians\n    a=radians(30.0); cad_x=10*cos(a)-20*sin(a); cad_y=10*sin(a)+20*cos(a)\n    r=derive_gerber_dimension('U1',cad_x,cad_y,'Top',[parse_gerber(silk)],search_radius_mm=5.0,cad_rotation=60.0,alignment=(0.0,0.0,30.0))
     assert 3.99 < r.length_mm < 4.02
     assert 1.99 < r.width_mm < 2.02
