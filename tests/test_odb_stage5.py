@@ -5,8 +5,15 @@ from models import UniquePart
 from dimensions.gerber_dimension import GerberDimensionResult
 
 def make_odb(tmp_path):
-    root=tmp_path/'odb'; p=root/'jobs'/'demo'/'steps'/'pcb'/'layers'/'comp_+_top'; p.mkdir(parents=True)
-    (root/'matrix').write_text('UNITS=MM\\n')\n    (p/'components').write_text('REF=C101 X=10.0 Y=20.0 ROT=90 SIDE=TOP PACKAGE=0603 LENGTH=1.6 WIDTH=0.8 HEIGHT=0.8\nREF=R1 X=1 Y=2 ROT=0 SIDE=TOP PACKAGE=0402\n')
+    root=tmp_path/'odb'
+    p=root/'jobs'/'demo'/'steps'/'pcb'/'layers'/'comp_+_top'
+    p.mkdir(parents=True)
+    (root/'matrix').write_text('UNITS=MM'+chr(10))
+    component_lines=[
+        'REF=C101 X=10.0 Y=20.0 ROT=90 SIDE=TOP PACKAGE=0603 LENGTH=1.6 WIDTH=0.8 HEIGHT=0.8',
+        'REF=R1 X=1 Y=2 ROT=0 SIDE=TOP PACKAGE=0402',
+    ]
+    (p/'components').write_text(chr(10).join(component_lines)+chr(10))
     return root
 
 def test_odb_directory_semantics(tmp_path):
