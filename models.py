@@ -37,4 +37,4 @@ class ProjectState:
     gerber_documents: list = field(default_factory=list)
     dimension_results: dict = field(default_factory=dict)
     mpn_lookup_results: dict = field(default_factory=dict)
-    manual_gerber_matches: dict = field(default_factory=dict)
+    manual_gerber_matches: dict = field(default_factory=dict)\n    shape_models: dict = field(default_factory=dict)
