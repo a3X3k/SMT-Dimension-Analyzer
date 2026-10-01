@@ -72,3 +72,21 @@ def test_odb_conflicting_units_withhold_numeric_values(tmp_path):
     d=parse_odb(root); c=d.components[0]
     assert d.units=='UNKNOWN' and c.x is None and c.length_mm is None
     assert any('conflicting' in w.lower() for w in d.warnings)
+
+
+def test_semantic_odb_dimensions_are_trusted_for_review(tmp_path):
+    d=parse_odb(make_odb(tmp_path)); parts=[UniquePart('PN1',['C101'],'C101')]
+    r=derive_odb_dimensions(parts,d)['PN1']
+    assert r.accepted is True
+    assert r.status=='ODB++ VERIFIED'
+    assert r.source=='ODB++' and r.confidence=='HIGH'
+
+def test_odb_height_merges_without_accepting_unreviewed_gerber_body(tmp_path):
+    root=_make_units_odb(tmp_path,'MM','REF=U1 X=1 Y=2 SIDE=TOP HEIGHT=0.8')
+    d=parse_odb(root); parts=[UniquePart('PN1',['U1'],'U1')]
+    o=derive_odb_dimensions(parts,d)
+    g={'PN1':GerberDimensionResult(ref='U1',length_mm=2.0,width_mm=1.0,source='Gerber Silkscreen - Proposed',confidence='MEDIUM',status='WAITING FOR USER ACCEPTANCE',accepted=False)}
+    m=merge_priority(o,g)['PN1']
+    assert m.length_mm==2.0 and m.width_mm==1.0 and m.height_mm==0.8
+    assert m.accepted is False
+    assert 'Height from ODB++' in m.remarks
