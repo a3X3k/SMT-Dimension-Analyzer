@@ -96,12 +96,13 @@ class MainWindow(QMainWindow):
         self.ref_search=QLineEdit(); self.ref_search.setPlaceholderText("Find Ref / MPN"); self.ref_search.returnPressed.connect(self._find_component); nav.addWidget(self.ref_search,1)
         nxt=QPushButton("Next ▶"); nxt.clicked.connect(lambda:self._move_review(1)); nav.addWidget(nxt)
         self.table=QTableWidget(0,10)
-        self.table.setHorizontalHeaderLabels(["Ref","MPN","Manufacturer","Package/Type","Body L","Body W","Height","Pins/Pitch","Source","Status"])
+        self.table.setHorizontalHeaderLabels(["Ref","MPN","Manufacturer","Package/Type","Body L (mm)","Body W (mm)","Body H (mm)","Pins / Pitch (mm)","Source","Status"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows); self.table.itemSelectionChanged.connect(self._table_selected); l.addWidget(self.table,1)
         self.review_info=QLabel("Import CAD, BOM and Gerber, then Analyze Dimensions."); self.review_info.setWordWrap(True); l.addWidget(self.review_info)
         form=QFormLayout(); self.manual_l=QDoubleSpinBox(); self.manual_w=QDoubleSpinBox()
         for s in (self.manual_l,self.manual_w): s.setRange(0,100); s.setDecimals(4); s.setSingleStep(.01)
         form.addRow("Adjusted body L (mm)",self.manual_l); form.addRow("Adjusted body W (mm)",self.manual_w); l.addLayout(form)
+        l.addWidget(QLabel("Engineering units: millimetres (mm) only."))
         self.apply_adjust=QPushButton("Apply Manual L/W"); self.apply_adjust.clicked.connect(self._apply_adjust); l.addWidget(self.apply_adjust)
         self.lookup=QPushButton("Search Selected MPN / Datasheet"); self.lookup.clicked.connect(self._lookup); l.addWidget(self.lookup)
         row=QHBoxLayout(); l.addLayout(row)
@@ -111,7 +112,7 @@ class MainWindow(QMainWindow):
     def _update_status(self):
         cad=len(self.state.cad_records); bom=len(self.state.unique_parts); ger=len(self.state.gerber_documents)
         reviewed=sum(1 for x in self.state.dimension_results.values() if getattr(x,"accepted",False))
-        self.status_strip.setText(f"CAD: {cad or '—'} | BOM unique parts: {bom or '—'} | Gerber layers: {ger or '—'} | Alignment X {self.dx:+.4f}  Y {self.dy:+.4f}  A {self.da:+.3f}° | Reviewed: {reviewed}/{bom}")
+        self.status_strip.setText(f"CAD: {cad or '—'} | BOM unique parts: {bom or '—'} | Gerber layers: {ger or '—'} | Alignment X {self.dx:+.4f} mm  Y {self.dy:+.4f} mm  A {self.da:+.3f}° | Reviewed: {reviewed}/{bom}")
         has_cad=bool(self.state.cad_records); has_bom=bool(self.state.unique_parts); has_gerber=bool(self.state.gerber_documents)
         self.bom_btn.setEnabled(has_cad)
         self.gerber_btn.setEnabled(has_cad)
@@ -140,7 +141,7 @@ class MainWindow(QMainWindow):
             return False
         self.state.odb_path=Path(path); self.state.cad_path=None
         self.state.cad_records=records; self.state.dimension_results={}
-        self.cad_info.setText(f"CAD: {Path(path).name} [ODB++] — {len(records)} placements; {len(doc.jobs)} job(s), {len(doc.steps)} step(s)")
+        self.cad_info.setText(f"CAD: {Path(path).name} [ODB++] — {len(records)} placements; {len(doc.jobs)} job(s), {len(doc.steps)} step(s) — working units: mm")
         self.workspace.set_data(cad=records); self.workspace.fit_board(); self._update_status()
         self.tabs.setCurrentIndex(0)
         return True
@@ -174,7 +175,7 @@ class MainWindow(QMainWindow):
             return
         self.state.cad_path=Path(fn); self.state.odb_path=None
         self.state.cad_records=parse_cad(fn); self.state.dimension_results={}
-        self.cad_info.setText(f"CAD: {Path(fn).name} — {len(self.state.cad_records)} placements")
+        self.cad_info.setText(f"CAD: {Path(fn).name} — {len(self.state.cad_records)} placements — units: mm")
         self.workspace.set_data(cad=self.state.cad_records); self.workspace.fit_board(); self._update_status()
         if not self.state.cad_records:
             QMessageBox.warning(self,"CAD import","No CAD placement records were found. Check the file headings and data.")
