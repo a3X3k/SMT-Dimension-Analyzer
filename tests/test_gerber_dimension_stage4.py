@@ -24,3 +24,28 @@ def test_wrong_side_not_used(tmp_path):
 def test_requires_cad_location(tmp_path):
     r=derive_gerber_dimension('U1',None,None,'Top',[])
     assert r.status=='NOT AVAILABLE / MANUAL REVIEW' and 'CAD X/Y' in r.remarks
+
+
+def _write_rotated_rect(path,cx,cy,w,h,angle):
+    from math import cos,sin,radians
+    a=radians(angle); ca,sa=cos(a),sin(a)
+    corners=[]
+    for x,y in ((-w/2,-h/2),(w/2,-h/2),(w/2,h/2),(-w/2,h/2)):
+        corners.append((cx+x*ca-y*sa,cy+x*sa+y*ca))
+    def q(v): return str(int(round(v*10000))).zfill(6)
+    lines=['%FSLAX24Y24*%','%MOMM*%','%ADD10C,0.010*%','D10*']
+    x,y=corners[0]; lines.append(f'X{q(x)}Y{q(y)}D02*')
+    for x,y in corners[1:]+corners[:1]: lines.append(f'X{q(x)}Y{q(y)}D01*')
+    lines.append('M02*'); path.write_text(chr(10).join(lines))
+
+def test_component_rotation_does_not_inflate_body_size(tmp_path):
+    silk=tmp_path/'rotated.GTO'; _write_rotated_rect(silk,10,20,4.0,2.0,45)
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(silk)],search_radius_mm=5.0,cad_rotation=45.0)
+    assert 3.99 < r.length_mm < 4.02
+    assert 1.99 < r.width_mm < 2.02
+
+def test_global_alignment_rotation_does_not_change_physical_size(tmp_path):
+    silk=tmp_path/'aligned.GTO'; _write_rotated_rect(silk,10,20,4.0,2.0,30)
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(silk)],search_radius_mm=5.0,cad_rotation=60.0,alignment=(0.0,0.0,30.0))
+    assert 3.99 < r.length_mm < 4.02
+    assert 1.99 < r.width_mm < 2.02
