@@ -1,6 +1,6 @@
 """Conservative component review proposals from accepted CAD + Gerber geometry."""
 from dataclasses import dataclass, field
-from math import hypot, radians, sin, cos
+from math import hypot, radians, sin, cos, atan2, pi
 SILK_LAYERS={"Top Silkscreen","Bottom Silkscreen"}; PASTE_LAYERS={"Top Paste","Bottom Paste"}
 
 @dataclass
@@ -24,9 +24,24 @@ def _half(doc,code):
     if shape in {"R","O"}:return p[0]/2,(p[1] if len(p)>1 else p[0])/2
     return 0.,0.
 
+def _arc_points(p):
+    if p.kind!="arc" or None in (p.x,p.y,p.x2,p.y2,p.i,p.j):return []
+    cx,cy=p.x+p.i,p.y+p.j; radius=hypot(p.x-cx,p.y-cy)
+    if radius<=0:return []
+    start=atan2(p.y-cy,p.x-cx); end=atan2(p.y2-cy,p.x2-cx)
+    def on_sweep(a):
+        if getattr(p,"clockwise",False):
+            return ((start-a)%(2*pi))<=((start-end)%(2*pi))+1e-12
+        return ((a-start)%(2*pi))<=((end-start)%(2*pi))+1e-12
+    return [(cx+radius*cos(a),cy+radius*sin(a)) for a in (0,pi/2,pi,3*pi/2) if on_sweep(a)]
+
 def _bbox(doc,p):
-    hx,hy=_half(doc,p.aperture); xs=[v for v in (p.x,p.x2) if v is not None]; ys=[v for v in (p.y,p.y2) if v is not None]
-    return None if not xs or not ys else (min(xs)-hx,min(ys)-hy,max(xs)+hx,max(ys)+hy)
+    hx,hy=_half(doc,p.aperture)
+    pts=[(x,y) for x,y in ((p.x,p.y),(p.x2,p.y2)) if x is not None and y is not None]
+    pts.extend(_arc_points(p))
+    if not pts:return None
+    xs=[q[0] for q in pts]; ys=[q[1] for q in pts]
+    return min(xs)-hx,min(ys)-hy,max(xs)+hx,max(ys)+hy
 
 def _near(b,x,y,r): return b and not (b[2]<x-r or b[0]>x+r or b[3]<y-r or b[1]>y+r)
 
@@ -48,8 +63,9 @@ def _local_body_size(doc,ids,cx,cy,rotation):
     a=radians(-float(rotation or 0.0)); ca,sa=cos(a),sin(a); pts=[]
     for i in ids:
         p=doc.primitives[i]; hx,hy=_half(doc,p.aperture)
-        for px,py in ((p.x,p.y),(p.x2,p.y2)):
-            if px is None or py is None:continue
+        geometry=[(px,py) for px,py in ((p.x,p.y),(p.x2,p.y2)) if px is not None and py is not None]
+        geometry.extend(_arc_points(p))
+        for px,py in geometry:
             lx=(px-cx)*ca-(py-cy)*sa; ly=(px-cx)*sa+(py-cy)*ca
             # Conservative aperture allowance. Circular strokes are exact here;
             # rectangular/obround strokes use their largest half-extent.
