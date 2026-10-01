@@ -51,42 +51,62 @@ def recognize_package_family(package_type="",mpn=""):
 def build_shape_model(part,cad=None,dimension=None,lookup=None):
     package=(getattr(lookup,"package_type","") or (getattr(cad,"raw",{}) or {}).get("package","") or "")
     manufacturer=getattr(lookup,"manufacturer","") or ""
-    family,fam_conf=recognize_package_family(package,getattr(part,"mpn",""))
+    family,_=recognize_package_family(package,getattr(part,"mpn",""))
     s=ShapeModel(mpn=part.mpn,ref=part.representative_ref,package_family=family,package_type=package,manufacturer=manufacturer)
 
-    # Priority: exact structured manufacturer/MPN data, then ODB++ semantic
-    # dimensions, then reviewed/proposed Gerber body. Missing fields stay blank.
+    # Source/confidence describe dimensional evidence only. Exact MPN metadata
+    # alone must never claim that dimensions came from the lookup provider.
+    lookup_dim_fields=(
+        "body_length_mm","body_width_mm","body_height_mm","pin_count","pin_pitch_mm",
+        "lead_width_mm","lead_length_mm","bga_rows","bga_columns","ball_pitch_mm",
+    )
+    lookup_supplied=False
     if lookup and getattr(lookup,"status","")=="EXACT MPN MATCH":
-        for dst,src in (
-            ("body_length_mm","body_length_mm"),("body_width_mm","body_width_mm"),("body_height_mm","body_height_mm"),
-            ("pin_count","pin_count"),("pin_pitch_mm","pin_pitch_mm"),("lead_width_mm","lead_width_mm"),("lead_length_mm","lead_length_mm"),
-            ("bga_rows","bga_rows"),("bga_columns","bga_columns"),("ball_pitch_mm","ball_pitch_mm")):
-            v=getattr(lookup,src,None)
-            if v is not None:setattr(s,dst,v)
-        s.source=getattr(lookup,"source","") or "Exact MPN lookup"
-        s.source_url=getattr(lookup,"datasheet_url","") or getattr(lookup,"source_url","")
-        s.confidence=getattr(lookup,"confidence","") or "HIGH"
+        for name in lookup_dim_fields:
+            v=getattr(lookup,name,None)
+            if v is not None:
+                setattr(s,name,v)
+                lookup_supplied=True
+        if lookup_supplied:
+            s.source=getattr(lookup,"source","") or "Exact MPN lookup"
+            s.source_url=getattr(lookup,"datasheet_url","") or getattr(lookup,"source_url","")
+            s.confidence=getattr(lookup,"confidence","") or "HIGH"
 
     raw=(getattr(cad,"raw",{}) or {}) if cad else {}
+    odb_supplied=False
     if raw.get("source")=="ODB++":
         for dst,key in (("body_length_mm","length_mm"),("body_width_mm","width_mm"),("body_height_mm","height_mm")):
-            if getattr(s,dst) is None and raw.get(key) is not None:setattr(s,dst,raw[key])
-        if any(raw.get(k) is not None for k in ("length_mm","width_mm","height_mm")) and not s.source:
-            s.source="ODB++"; s.confidence="HIGH"
+            if getattr(s,dst) is None and raw.get(key) is not None:
+                setattr(s,dst,raw[key])
+                odb_supplied=True
+        if odb_supplied:
+            if s.source:
+                s.source=f"{s.source} + ODB++"
+            else:
+                s.source="ODB++"
+                s.confidence="HIGH"
 
+    gerber_supplied=False
     if dimension:
-        if s.body_length_mm is None:s.body_length_mm=getattr(dimension,"length_mm",None)
-        if s.body_width_mm is None:s.body_width_mm=getattr(dimension,"width_mm",None)
-        if s.body_height_mm is None:s.body_height_mm=getattr(dimension,"height_mm",None)
-        if not s.source and (s.body_length_mm is not None or s.body_width_mm is not None):
-            s.source=getattr(dimension,"source",""); s.confidence=getattr(dimension,"confidence","")
+        for dst,src in (("body_length_mm","length_mm"),("body_width_mm","width_mm"),("body_height_mm","height_mm")):
+            if getattr(s,dst) is None:
+                v=getattr(dimension,src,None)
+                if v is not None:
+                    setattr(s,dst,v)
+                    gerber_supplied=True
+        if gerber_supplied:
+            dim_source=getattr(dimension,"source","")
+            if s.source:
+                s.source=f"{s.source} + {dim_source or 'Gerber'}"
+            else:
+                s.source=dim_source
+                s.confidence=getattr(dimension,"confidence","") or "NONE"
         s.user_accepted=bool(getattr(dimension,"accepted",False))
         s.verification=getattr(dimension,"status","NOT AVAILABLE")
         s.remarks=getattr(dimension,"remarks","")
-        # Paste-derived values remain candidates only; do not convert them to
-        # physical lead/ball dimensions automatically.
-        pass
-    if s.confidence=="NONE" and fam_conf!="NONE":s.confidence=fam_conf
+
+    # Do not derive dimension confidence from package-family recognition.
+    # Package classification and physical dimension provenance are separate.
     return s
 
 def build_project_shapes(unique_parts,cad_records,dimension_results,lookup_results):
