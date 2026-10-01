@@ -56,3 +56,29 @@ def test_mixed_lookup_and_odb_dimension_provenance_is_explicit():
     s=build_shape_model(part,cad=cad,lookup=lookup)
     assert (s.body_length_mm,s.body_width_mm,s.body_height_mm)==(4.0,3.0,1.0)
     assert s.source=="Manufacturer + ODB++" and s.confidence=="HIGH"
+
+
+def test_txt_export_hides_unaccepted_gerber_body_but_keeps_candidate(tmp_path):
+    from export.text_export import export_text
+    part=UniquePart("ABC",["U1"],"U1")
+    dim=GerberDimensionResult(ref="U1",length_mm=5.0,width_mm=4.0,source="Gerber Silkscreen - Proposed",confidence="MEDIUM",accepted=False)
+    s=build_shape_model(part,dimension=dim)
+    out=tmp_path/"out.txt"
+    export_text(out,[part],{"ABC":dim},{"ABC":s})
+    headers,values=out.read_text().splitlines()
+    row=dict(zip(headers.split("\t"),values.split("\t")))
+    assert row["BODY_L_MM"]=="" and row["BODY_W_MM"]==""
+    assert row["GERBER_L_MM"]=="5.0" and row["GERBER_W_MM"]=="4.0"
+    assert row["USER_ACCEPTED"]=="NO"
+
+def test_txt_export_promotes_accepted_gerber_body(tmp_path):
+    from export.text_export import export_text
+    part=UniquePart("ABC",["U1"],"U1")
+    dim=GerberDimensionResult(ref="U1",length_mm=5.0,width_mm=4.0,source="Gerber Silkscreen - Proposed",confidence="MEDIUM",accepted=True)
+    s=build_shape_model(part,dimension=dim)
+    out=tmp_path/"out.txt"
+    export_text(out,[part],{"ABC":dim},{"ABC":s})
+    headers,values=out.read_text().splitlines()
+    row=dict(zip(headers.split("\t"),values.split("\t")))
+    assert row["BODY_L_MM"]=="5.0" and row["BODY_W_MM"]=="4.0"
+    assert row["USER_ACCEPTED"]=="YES"
