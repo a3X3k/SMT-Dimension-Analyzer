@@ -62,23 +62,14 @@ def _scale_to_mm(units):
 def _convert_component_to_mm(c, scale):
     for name in ('x','y','length_mm','width_mm','height_mm'):
         v=getattr(c,name)
-        if v is not None: setattr(c,name,v*scale)
-    c.raw=dict(c.raw or {}); c.raw['source_units']='MM' if scale==1.0 else ('INCH' if scale==25.4 else 'MIL')
+        if v is not None:
+            setattr(c,name,v*scale)
+    c.raw=dict(c.raw or {})
+    c.raw['source_units']='MM' if scale==1.0 else ('INCH' if scale==25.4 else 'MIL')
     return c
 
-    kv={k.upper():v.strip('"') for k,v in re.findall(r'([A-Za-z_]+)\s*=\s*("[^"]*"|\S+)',line)}
-    if kv:
-        ref=kv.get('REF') or kv.get('REFDES') or kv.get('NAME')
-        if ref:
-            return OdbComponent(ref=ref,x=_num(kv.get('X')),y=_num(kv.get('Y')),rotation=_num(kv.get('ROT') or kv.get('ROTATION')),side=(kv.get('SIDE') or side).upper(),package=kv.get('PKG') or kv.get('PACKAGE') or '',mpn=kv.get('MPN') or kv.get('PART') or '',height_mm=_num(kv.get('HEIGHT') or kv.get('H')),length_mm=_num(kv.get('LENGTH') or kv.get('L')),width_mm=_num(kv.get('WIDTH') or kv.get('W')),source_file=source_file,raw=kv)
-    toks=line.split()
-    if toks and toks[0].upper() in {'CMP','COMP','COMPONENT','C'} and len(toks)>=4:
-        if _num(toks[2]) is not None and _num(toks[3]) is not None:
-            return OdbComponent(ref=toks[1],x=float(toks[2]),y=float(toks[3]),rotation=_num(toks[4]) if len(toks)>4 else None,side=side,package=toks[5] if len(toks)>5 else '',source_file=source_file,raw={'line':line})
-    return None
-
 def _parse_component_line(line, side, source_file):
-    kv={k.upper():v.strip('"') for k,v in re.findall(r'([A-Za-z_]+)\\s*=\\s*("[^"]*"|\\S+)',line)}
+    kv={k.upper():v.strip('"') for k,v in re.findall(r'([A-Za-z_]+)\s*=\s*("[^"]*"|\S+)',line)}
     if kv:
         ref=kv.get('REF') or kv.get('REFDES') or kv.get('NAME')
         if ref:
