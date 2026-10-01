@@ -9,6 +9,7 @@ from parsers.bom_parser import inspect_bom,parse_bom,group_unique_parts
 from parsers.gerber_parser import parse_gerber_files
 from matching.representative_selector import select_cad_aware_representatives
 from dimensions.gerber_dimension import derive_project_dimensions
+from dimensions.odb_dimension import derive_odb_dimensions, merge_priority
 from dimensions.shape_model import build_project_shapes
 from export.excel_export import export_excel
 from export.text_export import export_text
@@ -289,7 +290,12 @@ class MainWindow(QMainWindow):
         if not (self.state.cad_records and self.state.unique_parts and self.state.gerber_documents):
             QMessageBox.warning(self,"Missing input","Import CAD, BOM and Gerber before analysis."); return
         analysis_docs=[d for d in self.state.gerber_documents if d.layer!="Other / Ignore"]
-        self.state.dimension_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,analysis_docs,alignment=(self.dx,self.dy,self.da))
+        gerber_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,analysis_docs,alignment=(self.dx,self.dy,self.da))
+        if self.state.odb_path:
+            odb_results=derive_odb_dimensions(self.state.unique_parts,parse_odb(self.state.odb_path))
+            self.state.dimension_results=merge_priority(odb_results,gerber_results)
+        else:
+            self.state.dimension_results=gerber_results
         self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         for r,p in enumerate(self.state.unique_parts):
             x=self.state.dimension_results.get(p.mpn)
