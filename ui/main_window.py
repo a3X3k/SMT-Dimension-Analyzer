@@ -30,6 +30,7 @@ class MainWindow(QMainWindow):
         self.bom_btn=QPushButton("2. Import BOM"); self.bom_btn.clicked.connect(self.import_bom); bar.addWidget(self.bom_btn)
         self.gerber_btn=QPushButton("3. Import Gerber"); self.gerber_btn.clicked.connect(self.import_gerber); bar.addWidget(self.gerber_btn)
         self.fit=QPushButton("Fit Board"); self.fit.clicked.connect(lambda:self.workspace.fit_board()); bar.addWidget(self.fit)
+        self.measure_btn=QPushButton("Measure"); self.measure_btn.setCheckable(True); self.measure_btn.toggled.connect(lambda v:self.workspace.set_measure_mode(v)); bar.addWidget(self.measure_btn)
         self.refs=QCheckBox("Ref Designators"); self.refs.setChecked(True); self.refs.toggled.connect(lambda v:self.workspace.toggle_refs(v)); bar.addWidget(self.refs)
         self.mpn_top=QPushButton("Lookup MPN"); self.mpn_top.clicked.connect(self._lookup_structured); bar.addWidget(self.mpn_top)
         self.analyze_top=QPushButton("4. Analyze Dimensions"); self.analyze_top.clicked.connect(self._analyze); bar.addWidget(self.analyze_top)
@@ -39,7 +40,7 @@ class MainWindow(QMainWindow):
         self.next_step=QLabel("Next: import CAD data"); self.next_step.setStyleSheet("font-weight:600; padding:6px;"); outer.addWidget(self.next_step)
 
         split=QSplitter(); outer.addWidget(split,1)
-        self.workspace=PCBWorkspace(); self.workspace.componentClicked.connect(self._select_ref); split.addWidget(self.workspace)
+        self.workspace=PCBWorkspace(); self.workspace.componentClicked.connect(self._select_ref); self.workspace.measurementChanged.connect(self._measurement_changed); split.addWidget(self.workspace)
         right=QWidget(); rr=QVBoxLayout(right); split.addWidget(right); split.setSizes([1050,450])
         self.tabs=QTabWidget(); rr.addWidget(self.tabs)
         self._files_tab(); self._layers_tab(); self._alignment_tab(); self._review_tab()
@@ -55,6 +56,9 @@ class MainWindow(QMainWindow):
     def _layers_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"Gerber Layers")
         l.addWidget(QLabel("Show/hide each file or correct its detected engineering layer type. Changes apply immediately."))
+        op=QHBoxLayout(); l.addLayout(op); op.addWidget(QLabel("Gerber opacity"))
+        self.gerber_opacity=QSlider(Qt.Horizontal); self.gerber_opacity.setRange(5,100); self.gerber_opacity.setValue(85); self.gerber_opacity.valueChanged.connect(lambda v:self.workspace.set_gerber_opacity(v/100)); op.addWidget(self.gerber_opacity)
+        self.opacity_label=QLabel("85%"); self.gerber_opacity.valueChanged.connect(lambda v:self.opacity_label.setText(f"{v}%")); op.addWidget(self.opacity_label)
         self.layer_table=QTableWidget(0,3); self.layer_table.setHorizontalHeaderLabels(["Visible","Gerber File","Assigned Type"])
         self.layer_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.Stretch); l.addWidget(self.layer_table,1)
 
@@ -203,12 +207,16 @@ class MainWindow(QMainWindow):
         self.gerber_info.setText("Gerber: "+", ".join(f"{d.path.name} [{d.layer}]" for d in self.state.gerber_documents))
         self.workspace.set_data(gerbers=self.state.gerber_documents); self._refresh_layers(); self.workspace.fit_board(); self._update_status()
 
+    def _measurement_changed(self,text):
+        if text:self.statusBar().showMessage(text)
+        else:self.statusBar().clearMessage()
+
     def _alignment_changed(self):
         self.dx=self.xoff.value(); self.dy=self.yoff.value(); self.da=self.aoff.value()
         self.workspace.set_alignment(self.dx,self.dy,self.da)
         if self.state.dimension_results:
             self.state.dimension_results={}
-            for r in range(self.table.rowCount()): self.table.setItem(r,7,QTableWidgetItem("RE-ANALYZE AFTER ALIGNMENT"))
+            for r in range(self.table.rowCount()): self.table.setItem(r,9,QTableWidgetItem("RE-ANALYZE AFTER ALIGNMENT"))
         self._update_status()
 
     def _nudge(self,x,y,a):
@@ -283,8 +291,11 @@ class MainWindow(QMainWindow):
         for r,p in enumerate(self.state.unique_parts):
             x=self.state.dimension_results.get(p.mpn)
             if not x:continue
-            self.table.setItem(r,3,QTableWidgetItem(str(getattr(x,"length_mm","") or ""))); self.table.setItem(r,4,QTableWidgetItem(str(getattr(x,"width_mm","") or "")))
-            self.table.setItem(r,6,QTableWidgetItem(f"{getattr(x,'pad_count',None) or ''} / {getattr(x,'pitch_mm',None) or ''}")); self.table.setItem(r,7,QTableWidgetItem(getattr(x,"status","MANUAL REVIEW")))
+            self.table.setItem(r,4,QTableWidgetItem(str(getattr(x,"length_mm","") or ""))); self.table.setItem(r,5,QTableWidgetItem(str(getattr(x,"width_mm","") or "")))
+            self.table.setItem(r,6,QTableWidgetItem(str(getattr(x,"height_mm","") or "")))
+            self.table.setItem(r,7,QTableWidgetItem(f"{getattr(x,'pad_count',None) or ''} / {getattr(x,'pitch_mm',None) or ''}"))
+            self.table.setItem(r,8,QTableWidgetItem(getattr(x,"source","")))
+            self.table.setItem(r,9,QTableWidgetItem(getattr(x,"status","MANUAL REVIEW")))
         self._update_status()
 
     def _apply_adjust(self):
@@ -293,7 +304,7 @@ class MainWindow(QMainWindow):
         x=self.state.dimension_results.get(self.state.unique_parts[r].mpn)
         if not x:return
         x.length_mm=round(self.manual_l.value(),4); x.width_mm=round(self.manual_w.value(),4); x.source="USER - Manual Body Adjustment"; x.confidence="USER CONFIRMED"; x.status="WAITING FOR USER ACCEPTANCE"; x.accepted=False
-        self.table.setItem(r,3,QTableWidgetItem(str(x.length_mm))); self.table.setItem(r,4,QTableWidgetItem(str(x.width_mm))); self.table.setItem(r,7,QTableWidgetItem(x.status)); self._update_status()
+        self.table.setItem(r,4,QTableWidgetItem(str(x.length_mm))); self.table.setItem(r,5,QTableWidgetItem(str(x.width_mm))); self.table.setItem(r,8,QTableWidgetItem(x.source)); self.table.setItem(r,9,QTableWidgetItem(x.status)); self._update_status()
 
     def _accept_dimension(self):
         r=self.table.currentRow()
@@ -302,14 +313,14 @@ class MainWindow(QMainWindow):
         if x:
             x.accepted=True; x.status="USER ACCEPTED"
             if "User Confirmed" not in x.source:x.source=(x.source+" - User Confirmed").strip(" -")
-            self.table.setItem(r,7,QTableWidgetItem(x.status)); self._update_status()
+            self.table.setItem(r,9,QTableWidgetItem(x.status)); self._update_status()
 
     def _reject_dimension(self):
         r=self.table.currentRow()
         if r<0 or r>=len(self.state.unique_parts):return
         x=self.state.dimension_results.get(self.state.unique_parts[r].mpn)
         if x:x.accepted=False; x.status="MANUAL REVIEW"
-        self.table.setItem(r,7,QTableWidgetItem("MANUAL REVIEW")); self._update_status()
+        self.table.setItem(r,9,QTableWidgetItem("MANUAL REVIEW")); self._update_status()
 
     def _export(self):
         folder=QFileDialog.getExistingDirectory(self,"Export folder")
