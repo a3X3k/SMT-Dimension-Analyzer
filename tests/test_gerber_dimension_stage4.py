@@ -54,3 +54,34 @@ def test_global_alignment_rotation_does_not_change_physical_size(tmp_path):
     r=derive_gerber_dimension('U1',cad_x,cad_y,'Top',[parse_gerber(silk)],search_radius_mm=5.0,cad_rotation=60.0,alignment=(0.0,0.0,30.0))
     assert 3.99 < r.length_mm < 4.02
     assert 1.99 < r.width_mm < 2.02
+
+
+def _write_rounded_rect(path,cx,cy,w,h,r):
+    def q(v): return str(int(round(v*10000))).zfill(6)
+    def qi(v):
+        n=int(round(v*10000))
+        return ('-' if n<0 else '')+str(abs(n)).zfill(6)
+    x1,x2=cx-w/2,cx+w/2; y1,y2=cy-h/2,cy+h/2
+    lines=['%FSLAX24Y24*%','%MOMM*%','%ADD10C,0.010*%','D10*',
+           f'X{q(x1+r)}Y{q(y1)}D02*',f'X{q(x2-r)}Y{q(y1)}D01*',
+           'G03*',f'X{q(x2)}Y{q(y1+r)}I{qi(0)}J{qi(r)}D01*',
+           'G01*',f'X{q(x2)}Y{q(y2-r)}D01*',
+           'G03*',f'X{q(x2-r)}Y{q(y2)}I{qi(-r)}J{qi(0)}D01*',
+           'G01*',f'X{q(x1+r)}Y{q(y2)}D01*',
+           'G03*',f'X{q(x1)}Y{q(y2-r)}I{qi(0)}J{qi(-r)}D01*',
+           'G01*',f'X{q(x1)}Y{q(y1+r)}D01*',
+           'G03*',f'X{q(x1+r)}Y{q(y1)}I{qi(r)}J{qi(0)}D01*','M02*']
+    path.write_text(chr(10).join(lines))
+
+def test_arc_extrema_preserve_rounded_body_size(tmp_path):
+    silk=tmp_path/'rounded.GTO'; _write_rounded_rect(silk,10,20,4.0,2.0,.5)
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(silk)],search_radius_mm=5.0)
+    assert r.status=='WAITING FOR USER ACCEPTANCE'
+    assert 3.99 < r.length_mm < 4.02
+    assert 1.99 < r.width_mm < 2.02
+
+def test_bottom_side_rotated_body_keeps_local_dimensions(tmp_path):
+    silk=tmp_path/'rotated.GBO'; _write_rotated_rect(silk,10,20,4.0,2.0,30)
+    r=derive_gerber_dimension('U1',10,20,'Bottom',[parse_gerber(silk)],search_radius_mm=5.0,cad_rotation=30.0)
+    assert 3.99 < r.length_mm < 4.02
+    assert 1.99 < r.width_mm < 2.02
