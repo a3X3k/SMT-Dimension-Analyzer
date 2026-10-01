@@ -8,7 +8,8 @@ from parsers.odb_parser import parse_odb
 from parsers.bom_parser import inspect_bom,parse_bom,group_unique_parts
 from parsers.gerber_parser import parse_gerber_files
 from matching.representative_selector import select_cad_aware_representatives
-from dimensions.gerber_dimension import derive_project_dimensions\nfrom dimensions.shape_model import build_project_shapes
+from dimensions.gerber_dimension import derive_project_dimensions
+from dimensions.shape_model import build_project_shapes
 from export.excel_export import export_excel
 from export.text_export import export_text
 from ui.pcb_workspace import PCBWorkspace
@@ -140,8 +141,11 @@ class MainWindow(QMainWindow):
             for x in doc.components if x.ref
         ]
         if not records:
-            details="\n".join(doc.warnings) if doc.warnings else "No component placement records were found."
-            QMessageBox.warning(self,"ODB++ import",f"ODB++ was opened, but no supported component placements were found.\n\n{details}")
+            details="
+".join(doc.warnings) if doc.warnings else "No component placement records were found."
+            QMessageBox.warning(self,"ODB++ import",f"ODB++ was opened, but no supported component placements were found.
+
+{details}")
             return False
         self.state.odb_path=Path(path); self.state.cad_path=None
         self.state.cad_records=records; self.state.dimension_results={}
@@ -175,7 +179,9 @@ class MainWindow(QMainWindow):
         required=("ref","x","y","rotation")
         if not all(det.get(k) for k in required):
             missing=", ".join(k.upper() for k in required if not det.get(k))
-            QMessageBox.warning(self,"CAD headings not recognized",f"Required CAD heading(s) not recognized: {missing}.\n\nExpected headings include Reference/RefDes, X location, Y location, and Angle/Rotation.")
+            QMessageBox.warning(self,"CAD headings not recognized",f"Required CAD heading(s) not recognized: {missing}.
+
+Expected headings include Reference/RefDes, X location, Y location, and Angle/Rotation.")
             return
         self.state.cad_path=Path(fn); self.state.odb_path=None
         self.state.cad_records=parse_cad(fn); self.state.dimension_results={}
@@ -192,7 +198,9 @@ class MainWindow(QMainWindow):
         df,det=inspect_bom(fn)
         if not det.get("mpn") or not det.get("ref"):
             missing=", ".join(x for x in ("Part Number / MPN" if not det.get("mpn") else "", "Reference" if not det.get("ref") else "") if x)
-            QMessageBox.warning(self,"BOM headings not recognized",f"Required BOM heading(s) not recognized: {missing}.\n\nThe software maps BOM columns automatically from their headings.")
+            QMessageBox.warning(self,"BOM headings not recognized",f"Required BOM heading(s) not recognized: {missing}.
+
+The software maps BOM columns automatically from their headings.")
             return
         self.state.bom_path=Path(fn); self.state.bom_records=parse_bom(fn)
         self.state.unique_parts=group_unique_parts(self.state.bom_records); select_cad_aware_representatives(self.state.unique_parts,self.state.cad_records)
@@ -287,14 +295,18 @@ class MainWindow(QMainWindow):
         if not (self.state.cad_records and self.state.unique_parts and self.state.gerber_documents):
             QMessageBox.warning(self,"Missing input","Import CAD, BOM and Gerber before analysis."); return
         analysis_docs=[d for d in self.state.gerber_documents if d.layer!="Other / Ignore"]
-        self.state.dimension_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,analysis_docs,alignment=(self.dx,self.dy,self.da))\n        self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
+        self.state.dimension_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,analysis_docs,alignment=(self.dx,self.dy,self.da))
+        self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         for r,p in enumerate(self.state.unique_parts):
             x=self.state.dimension_results.get(p.mpn)
             if not x:continue
             self.table.setItem(r,4,QTableWidgetItem(str(getattr(x,"length_mm","") or ""))); self.table.setItem(r,5,QTableWidgetItem(str(getattr(x,"width_mm","") or "")))
             self.table.setItem(r,6,QTableWidgetItem(str(getattr(x,"height_mm","") or "")))
             self.table.setItem(r,7,QTableWidgetItem(f"{getattr(x,'pad_count',None) or ''} / {getattr(x,'pitch_mm',None) or ''}"))
-            shape=self.state.shape_models.get(p.mpn)\n            if shape and shape.package_type:self.table.setItem(r,3,QTableWidgetItem(f"{shape.package_type} [{shape.package_family}]"))\n            elif shape:self.table.setItem(r,3,QTableWidgetItem(shape.package_family))\n            self.table.setItem(r,8,QTableWidgetItem(getattr(x,"source","")))
+            shape=self.state.shape_models.get(p.mpn)
+            if shape and shape.package_type:self.table.setItem(r,3,QTableWidgetItem(f"{shape.package_type} [{shape.package_family}]"))
+            elif shape:self.table.setItem(r,3,QTableWidgetItem(shape.package_family))
+            self.table.setItem(r,8,QTableWidgetItem(getattr(x,"source","")))
             self.table.setItem(r,9,QTableWidgetItem(getattr(x,"status","MANUAL REVIEW")))
         self._update_status()
 
