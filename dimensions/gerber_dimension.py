@@ -43,17 +43,36 @@ def _transform_bbox(b,dx,dy,angle):
     return min(xs),min(ys),max(xs),max(ys)
 def _union(bs): return min(b[0] for b in bs),min(b[1] for b in bs),max(b[2] for b in bs),max(b[3] for b in bs)
 
-def _body_candidate(doc,x,y,r):
-    found=[]
+def _body_candidate(doc,x,y,r,tol=.08):
+    # Use only connected line/arc loops enclosing the CAD origin. This avoids
+    # treating nearby reference text and disconnected silk strokes as a body.
+    segs=[]
     for i,p in enumerate(doc.primitives):
-        if p.polarity!="DARK":continue
+        if p.polarity!="DARK" or p.kind not in {"line","arc"} or None in (p.x,p.y,p.x2,p.y2):continue
         b=_bbox(doc,p)
-        if _near(b,x,y,r):found.append((i,b))
-    if not found:return None,[]
-    # Keep local geometry only. This is a proposal for human acceptance, never manufacturer-exact.
-    boxes=[b for _,b in found if abs((b[0]+b[2])/2-x)<=r and abs((b[1]+b[3])/2-y)<=r]
-    ids=[i for i,b in found if b in boxes]
-    return (_union(boxes) if boxes else None),ids
+        if _near(b,x,y,r):segs.append((i,p,b))
+    if len(segs)<3:return None,[]
+    def close(a,b):return hypot(a[0]-b[0],a[1]-b[1])<=tol
+    unused=set(range(len(segs))); loops=[]
+    while unused:
+        first=unused.pop(); chain=[first]; p=segs[first][1]
+        start=(p.x,p.y); end=(p.x2,p.y2)
+        changed=True
+        while changed and unused:
+            changed=False
+            for j in list(unused):
+                q=segs[j][1]; a=(q.x,q.y); b=(q.x2,q.y2)
+                if close(end,a):end=b
+                elif close(end,b):end=a
+                else:continue
+                chain.append(j); unused.remove(j); changed=True; break
+        if len(chain)>=3 and close(end,start):
+            box=_union([segs[j][2] for j in chain])
+            if box[0]-tol<=x<=box[2]+tol and box[1]-tol<=y<=box[3]+tol:
+                loops.append((box,[segs[j][0] for j in chain]))
+    if not loops:return None,[]
+    loops.sort(key=lambda z:(z[0][2]-z[0][0])*(z[0][3]-z[0][1]))
+    return loops[0]
 
 def _pitch(values):
     vals=sorted(set(round(v,4) for v in values))
@@ -87,10 +106,10 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
             if not b:continue
             l,w=b[2]-b[0],b[3]-b[1]; cx,cy=(b[0]+b[2])/2,(b[1]+b[3])/2
             if not(.15<=l<=50 and .15<=w<=50 and hypot(cx-gx,cy-gy)<=2.5):continue
+            raw_l,raw_w=l,w
             b_aligned=_transform_bbox(b,dx,dy,angle); acx,acy=_forward(cx,cy,dx,dy,angle)
-            l,w=b_aligned[2]-b_aligned[0],b_aligned[3]-b_aligned[1]
-            result=GerberDimensionResult(ref,round(max(l,w),4),round(min(l,w),4),None,source,conf,"WAITING FOR USER ACCEPTANCE",
-                "Silkscreen body proposal only. Use only after user acceptance when reliable MPN/manufacturer dimensions are unavailable. Height not inferred.",round(acx,4),round(acy,4),d.layer,b_aligned,ids)
+            result=GerberDimensionResult(ref,round(max(raw_l,raw_w),4),round(min(raw_l,raw_w),4),None,source,conf,"WAITING FOR USER ACCEPTANCE",
+                "Closed silkscreen outline proposal only. Disconnected nearby strokes/text are excluded. Use only after user acceptance when reliable MPN/manufacturer dimensions are unavailable. Height not inferred.",round(acx,4),round(acy,4),d.layer,b_aligned,ids)
             break
         if result:break
     if not result:result=GerberDimensionResult(ref,remarks="No reliable MPN/manufacturer dimensions supplied and no credible silkscreen body proposal; manual review required.")
