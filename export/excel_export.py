@@ -4,11 +4,11 @@ from datetime import datetime
 
 def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None):
     cad_by_ref=cad_by_ref or {}; dimension_results=dimension_results or {}; wb=Workbook(); ws=wb.active; ws.title="Shape Dimensions"
-    headers=["PN / MPN","Representative Ref","Manufacturer","Package / Type","Body Length (mm)","Body Width (mm)","Body Height (mm)","Overall Length (mm)","Overall Width (mm)","Pin / Ball Count Candidate","Pin / Ball Pitch Candidate (mm)","Pad Rows","Pad Columns","Dimension Source","Source URL","Confidence","Status","User Accepted","Remarks"]
+    headers=["PN / MPN","Representative Ref","Manufacturer","Package / Type","Body Length (mm)","Body Width (mm)","Body Height (mm)","Overall Length (mm)","Overall Width (mm)","Paste Envelope Length (mm)","Paste Envelope Width (mm)","Paste Pad Length (mm)","Paste Pad Width (mm)","Pin / Ball Count Candidate","Pin / Ball Pitch Candidate (mm)","Pad Rows","Pad Columns","Dimension Source","Source URL","Confidence","Status","User Accepted","Remarks"]
     ws.append(headers)
     for p in unique_parts:
         r=dimension_results.get(p.mpn)
-        ws.append([p.mpn,p.representative_ref,"","",getattr(r,"length_mm",None),getattr(r,"width_mm",None),getattr(r,"height_mm",None),"","",getattr(r,"pad_count",None),getattr(r,"pitch_mm",None),getattr(r,"pad_rows",None),getattr(r,"pad_columns",None),getattr(r,"source",""),"",getattr(r,"confidence",""),getattr(r,"status","NOT ACCEPTED"),"YES" if getattr(r,"accepted",False) else "NO",getattr(r,"remarks","")])
+        ws.append([p.mpn,p.representative_ref,"","",getattr(r,"length_mm",None),getattr(r,"width_mm",None),getattr(r,"height_mm",None),"","",getattr(r,"paste_length_mm",None),getattr(r,"paste_width_mm",None),getattr(r,"paste_pad_length_mm",None),getattr(r,"paste_pad_width_mm",None),getattr(r,"pad_count",None),getattr(r,"pitch_mm",None),getattr(r,"pad_rows",None),getattr(r,"pad_columns",None),getattr(r,"source",""),"",getattr(r,"confidence",""),getattr(r,"status","NOT ACCEPTED"),"YES" if getattr(r,"accepted",False) else "NO",getattr(r,"remarks","")])
     v=wb.create_sheet("Location Verification"); v.append(["PN","Ref","CAD X (mm)","CAD Y (mm)","CAD Rotation (deg)","Gerber X (mm)","Gerber Y (mm)","Delta X (mm)","Delta Y (mm)","Status"])
     for p in unique_parts:
         c=cad_by_ref.get(p.representative_ref); r=dimension_results.get(p.mpn); gx=getattr(r,"gerber_x",None); gy=getattr(r,"gerber_y",None); cx=getattr(c,"x",None); cy=getattr(c,"y",None)
