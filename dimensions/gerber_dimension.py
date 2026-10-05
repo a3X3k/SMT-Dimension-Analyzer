@@ -199,30 +199,45 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
                 break
     return result
 
+def _consensus_cluster(candidates,tol=.15):
+    """Largest mutually compatible L/W cluster; deterministic and outlier resistant."""
+    best=[]
+    for seed in candidates:
+        cluster=[r for r in candidates if abs(r.length_mm-seed.length_mm)<=tol and abs(r.width_mm-seed.width_mm)<=tol]
+        if len(cluster)>len(best):best=cluster
+    return best
+
 def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0)):
     by_ref={c.ref.strip().upper():c for c in cad_records}; out={}
     for p in unique_parts:
         candidates=[]
-        # Try every CAD-backed instance of the same MPN. This avoids rejecting a
-        # part merely because its first/representative silkscreen is incomplete.
+        # Try every CAD-backed instance of the same MPN. A single damaged or
+        # clipped silkscreen must not decide the dimension for the whole part.
         for ref in p.refs:
             cad=by_ref.get(ref.strip().upper())
             if not cad:continue
             r=derive_gerber_dimension(ref,getattr(cad,"x",None),getattr(cad,"y",None),getattr(cad,"layer",""),documents,search_radius_mm,alignment,getattr(cad,"rotation",0.0))
             if r.length_mm is not None and r.width_mm is not None:candidates.append(r)
         if candidates:
+            cluster=_consensus_cluster(candidates)
+            pool=cluster if len(cluster)>=2 else candidates
             rank=lambda r:(0 if r.source=="Gerber Silkscreen - Proposed" else 1, -len(r.primitive_ids))
-            best=sorted(candidates,key=rank)[0]
-            if len(candidates)>=2:
-                close=[r for r in candidates if abs(r.length_mm-best.length_mm)<=.15 and abs(r.width_mm-best.width_mm)<=.15]
-                if len(close)>=2:
-                    best.remarks += f" Same-MPN geometry consensus: {len(close)} CAD instances agree within 0.15 mm."
-                    if best.confidence=="LOW":best.confidence="MEDIUM"
+            best=sorted(pool,key=rank)[0]
+            if len(cluster)>=2:
+                ls=sorted(r.length_mm for r in cluster); ws=sorted(r.width_mm for r in cluster)
+                mid=len(cluster)//2
+                ml=ls[mid] if len(cluster)%2 else (ls[mid-1]+ls[mid])/2
+                mw=ws[mid] if len(cluster)%2 else (ws[mid-1]+ws[mid])/2
+                best.length_mm=round(ml,4); best.width_mm=round(mw,4)
+                best.remarks += f" Same-MPN geometry consensus: {len(cluster)}/{len(candidates)} CAD instances agree within {0.15:.2f} mm; consensus median used."
+                if best.confidence=="LOW":best.confidence="MEDIUM"
+            elif len(candidates)>1:
+                best.confidence="LOW"
+                best.remarks += f" Same-MPN instances disagree; selected best geometry from {len(candidates)} candidates and kept LOW confidence."
             out[p.mpn]=best
         else:
             out[p.mpn]=GerberDimensionResult(p.representative_ref,remarks="No CAD-backed instance produced a credible silkscreen body proposal; manual review required.")
     return out
-
 
 def apply_manual_matches(unique_parts, automatic_results, manual_matches):
     """Preserve Stage-6 explicit primitive selections as highest-confidence user-confirmed Gerber results."""
