@@ -10,6 +10,7 @@ GENERIC={".gbr",".ger",".pho",".art"}
 @dataclass
 class Aperture:
     code:int; shape:str; params:list[float]=field(default_factory=list)
+    macro_bounds:tuple[float,float]|None=None
 @dataclass
 class Primitive:
     kind:str; x:float|None=None; y:float|None=None; x2:float|None=None; y2:float|None=None
@@ -60,6 +61,7 @@ def parse_gerber(path, layer_override=None):
     path=Path(path); text=path.read_text(encoding='utf-8',errors='ignore').replace('\r','').replace('\n','')
     doc=GerberDocument(path=path,layer=layer_override or classify_gerber(path))
     x=y=0.0; aperture=None; interpolation='LINEAR'; region=False; polarity='DARK'; last_d=2
+    macros={}
     for raw in _tokenize(text):
         cmd=raw.strip().rstrip('*')
         if not cmd:continue
@@ -74,17 +76,30 @@ def parse_gerber(path, layer_override=None):
             if m:
                 vals=[]
                 if m.group(3):
-                    for v in re.split(r'[Xx]',m.group(3)):
+                    for v in re.split(r'[Xx,]',m.group(3)):
                         try: vals.append(float(v))
                         except ValueError: pass
-                doc.apertures[int(m.group(1))]=Aperture(int(m.group(1)),m.group(2),vals)
+                shape=m.group(2); bounds=None
+                # KiCad RoundRect macro flashes pass width/height as the first
+                # two aperture modifiers. Preserve those extents even though we
+                # do not need to tessellate the rounded corners for dimensions.
+                if shape in macros and shape.lower().startswith('roundrect') and len(vals)>=2:
+                    bounds=(abs(vals[0]),abs(vals[1]))
+                doc.apertures[int(m.group(1))]=Aperture(int(m.group(1)),shape,vals,bounds)
             continue
         if cmd.startswith('LP'):
             polarity='DARK' if cmd.startswith('LPD') else 'CLEAR'; continue
         if cmd.startswith('TF.') or cmd.startswith('TA.') or cmd.startswith('TO.'):
             key,*rest=cmd.split(',',1); doc.attributes[key]=rest[0] if rest else ''; continue
         if cmd.startswith('AM'):
-            doc.warnings.append('Aperture macro definition preserved but macro geometry is not expanded yet.'); continue
+            name=cmd[2:].split('*',1)[0].strip()
+            if name:macros[name]=cmd
+            # Macro text is retained conceptually. Known KiCad RoundRect flashes
+            # expose exact width/height via ADD modifiers; arbitrary macros stay
+            # conservative and do not invent dimensions.
+            if not name.lower().startswith('roundrect'):
+                doc.warnings.append('Aperture macro definition preserved but arbitrary macro geometry is not expanded yet.')
+            continue
         if cmd.startswith('G04'): continue
         if 'G36' in cmd: region=True
         if 'G37' in cmd: region=False
