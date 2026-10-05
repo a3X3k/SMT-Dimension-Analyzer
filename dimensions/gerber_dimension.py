@@ -19,8 +19,12 @@ def _side(s):
 
 def _half(doc,code):
     a=doc.apertures.get(code) if code else None
-    if not a or not a.params:return 0.,0.
-    scale=25.4 if doc.units=="inch" else 1.; p=[v*scale for v in a.params]; shape=a.shape.upper()
+    if not a:return 0.,0.
+    scale=25.4 if doc.units=="inch" else 1.
+    if getattr(a,"macro_bounds",None):
+        return a.macro_bounds[0]*scale/2,a.macro_bounds[1]*scale/2
+    if not a.params:return 0.,0.
+    p=[v*scale for v in a.params]; shape=a.shape.upper()
     if shape in {"C","P"}:return p[0]/2,p[0]/2
     if shape in {"R","O"}:return p[0]/2,(p[1] if len(p)>1 else p[0])/2
     return 0.,0.
