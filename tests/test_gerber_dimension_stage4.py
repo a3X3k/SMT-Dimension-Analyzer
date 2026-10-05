@@ -228,3 +228,19 @@ def test_paste_envelope_is_reported_separately_from_silkscreen_body(tmp_path):
     assert abs(r.paste_length_mm-6.0)<.01 and abs(r.paste_width_mm-1.5)<.01
     assert abs(r.paste_pad_length_mm-1.0)<.01 and abs(r.paste_pad_width_mm-.5)<.01
     assert r.paste_length_mm != r.length_mm
+
+
+def test_kicad_roundrect_macro_extents_drive_paste_dimensions(tmp_path):
+    p=tmp_path/'roundrect.GTP'
+    p.write_text('%FSLAX46Y46*%\n%MOMM*%\n%AMRoundRect*0 comment*%\n'
+        '%ADD10RoundRect,1.20X0.60X0.15*%\nD10*\n'
+        'X9000000Y20000000D03*\nX11000000Y20000000D03*\nM02*\n')
+    d=parse_gerber(p)
+    a=d.apertures[10]
+    assert a.macro_bounds==(1.2,.6)
+    r=derive_gerber_dimension('U1',10,20,'Top',[d],search_radius_mm=3)
+    assert r.pad_count==2
+    assert abs(r.paste_length_mm-3.2)<.01
+    assert abs(r.paste_width_mm-.6)<.01
+    assert abs(r.paste_pad_length_mm-1.2)<.01
+    assert abs(r.paste_pad_width_mm-.6)<.01
