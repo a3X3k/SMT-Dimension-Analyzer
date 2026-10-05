@@ -131,3 +131,17 @@ def test_project_uses_clearer_same_mpn_instance(tmp_path):
     assert r.ref=='U2'
     assert r.source=='Gerber Silkscreen - Proposed'
     assert 3.99 < r.length_mm < 4.02
+
+
+def test_same_mpn_consensus_rejects_outlier():
+    from dimensions.gerber_dimension import GerberDimensionResult,_consensus_cluster
+    rs=[GerberDimensionResult('U1',5.00,3.00),GerberDimensionResult('U2',5.04,3.02),
+        GerberDimensionResult('U3',4.98,3.01),GerberDimensionResult('U4',7.20,4.00)]
+    cluster=_consensus_cluster(rs)
+    assert len(cluster)==3
+    assert {r.ref for r in cluster}=={'U1','U2','U3'}
+
+def test_same_mpn_consensus_requires_both_dimensions_to_agree():
+    from dimensions.gerber_dimension import GerberDimensionResult,_consensus_cluster
+    rs=[GerberDimensionResult('U1',5.00,3.00),GerberDimensionResult('U2',5.05,3.40)]
+    assert len(_consensus_cluster(rs))==1
