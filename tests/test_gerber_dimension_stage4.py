@@ -180,3 +180,25 @@ def test_three_sided_asymmetric_silk_is_rejected(tmp_path):
     p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nD10*\nX80000Y190000D02*X80000Y210000D01*\nX125000Y190000D02*X125000Y210000D01*\nX80000Y190000D02*X95000Y190000D01*\nX105000Y190000D02*X125000Y190000D01*\nM02*\n')
     r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(p)],search_radius_mm=5)
     assert r.length_mm is None
+
+
+def test_fragmented_open_edges_reconstruct_body(tmp_path):
+    p=tmp_path/'fragmented.GTO'
+    p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nD10*\n'
+        'X80000Y190000D02*X80000Y198000D01*\nX80000Y202000D02*X80000Y210000D01*\n'
+        'X120000Y190000D02*X120000Y198000D01*\nX120000Y202000D02*X120000Y210000D01*\n'
+        'X80000Y190000D02*X98000Y190000D01*\nX102000Y190000D02*X120000Y190000D01*\n'
+        'X80000Y210000D02*X98000Y210000D01*\nX102000Y210000D02*X120000Y210000D01*\nM02*\n')
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(p)],search_radius_mm=5)
+    assert r.source=='Gerber Silkscreen - Reconstructed'
+    assert abs(r.length_mm-4.1)<.15 and abs(r.width_mm-2.1)<.15
+    assert len(r.primitive_ids)==8 and not r.accepted
+
+def test_large_fragment_gap_does_not_merge_into_edge(tmp_path):
+    p=tmp_path/'large_gap.GTO'
+    p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nD10*\n'
+        'X80000Y190000D02*X80000Y194000D01*\nX80000Y206000D02*X80000Y210000D01*\n'
+        'X120000Y190000D02*X120000Y194000D01*\nX120000Y206000D02*X120000Y210000D01*\n'
+        'X80000Y190000D02*X120000Y190000D01*\nX80000Y210000D02*X120000Y210000D01*\nM02*\n')
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(p)],search_radius_mm=5)
+    assert r.length_mm is None
