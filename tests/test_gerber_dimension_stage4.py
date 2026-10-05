@@ -213,3 +213,18 @@ def test_broad_arc_closed_loop_is_rejected_from_body_proposal(tmp_path):
     r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(p)],search_radius_mm=5)
     assert r.length_mm is None
 
+
+
+def test_paste_envelope_is_reported_separately_from_silkscreen_body(tmp_path):
+    silk=tmp_path/'body.GTO'
+    silk.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nD10*\n'
+        'X80000Y190000D02*X120000Y190000D01*X120000Y210000D01*X80000Y210000D01*X80000Y190000D01*\nM02*\n')
+    paste=tmp_path/'pads.GTP'
+    paste.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10R,1.0X0.5*%\nD10*\n'
+        'X75000Y195000D03*\nX125000Y195000D03*\nX75000Y205000D03*\nX125000Y205000D03*\nM02*\n')
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(silk),parse_gerber(paste)],search_radius_mm=4)
+    assert abs(r.length_mm-4.1)<.15 and abs(r.width_mm-2.1)<.15
+    assert r.pad_count==4
+    assert abs(r.paste_length_mm-6.0)<.01 and abs(r.paste_width_mm-1.5)<.01
+    assert abs(r.paste_pad_length_mm-1.0)<.01 and abs(r.paste_pad_width_mm-.5)<.01
+    assert r.paste_length_mm != r.length_mm
