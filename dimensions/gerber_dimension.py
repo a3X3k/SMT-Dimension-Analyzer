@@ -164,7 +164,7 @@ def _pad_geometry(doc,x,y,r):
     px,py=_pitch(xs),_pitch(ys); candidates=[v for v in (px,py) if v]
     return len(pts),(min(candidates) if candidates else None),len(uy),len(ux)
 
-def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0),cad_rotation=0.0):
+def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0),cad_rotation=0.0,neighbor_positions=None):
     if x is None or y is None:return GerberDimensionResult(ref,remarks="CAD X/Y required.")
     side=_side(cad_layer); docs=[d for d in documents if not side or _side(d.layer)==side]
     dx,dy,angle=alignment; gx,gy=_inverse(x,y,dx,dy,angle)
@@ -181,6 +181,17 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
             if not(.15<=l<=50 and .15<=w<=50 and hypot(cx-gx,cy-gy)<=2.5):continue
             local=_local_body_size(d,ids,gx if reconstructed else cx,gy if reconstructed else cy,float(cad_rotation or 0.0)-angle)
             raw_l,raw_w=(local if local else (l,w))
+            # Dense-board protection: a body proposal may not enclose another
+            # CAD component centre on the same side. This prevents borrowing a
+            # neighbour's silkscreen in tightly packed areas.
+            if neighbor_positions:
+                margin=.05
+                contaminated=False
+                for nx,ny in neighbor_positions:
+                    ngx,ngy=_inverse(nx,ny,dx,dy,angle)
+                    if b[0]+margin < ngx < b[2]-margin and b[1]+margin < ngy < b[3]-margin:
+                        contaminated=True; break
+                if contaminated:continue
             b_aligned=_transform_bbox(b,dx,dy,angle); acx,acy=_forward(cx,cy,dx,dy,angle)
             actual_source="Gerber Silkscreen - Reconstructed" if reconstructed else source
             actual_conf="LOW" if reconstructed else conf
@@ -216,7 +227,12 @@ def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_m
         for ref in p.refs:
             cad=by_ref.get(ref.strip().upper())
             if not cad:continue
-            r=derive_gerber_dimension(ref,getattr(cad,"x",None),getattr(cad,"y",None),getattr(cad,"layer",""),documents,search_radius_mm,alignment,getattr(cad,"rotation",0.0))
+            side=_side(getattr(cad,"layer",""))
+            neighbors=[(getattr(n,"x",None),getattr(n,"y",None)) for n in cad_records
+                       if n is not cad and _side(getattr(n,"layer",""))==side
+                       and getattr(n,"x",None) is not None and getattr(n,"y",None) is not None
+                       and hypot(n.x-cad.x,n.y-cad.y)<=search_radius_mm*2]
+            r=derive_gerber_dimension(ref,getattr(cad,"x",None),getattr(cad,"y",None),getattr(cad,"layer",""),documents,search_radius_mm,alignment,getattr(cad,"rotation",0.0),neighbors)
             if r.length_mm is not None and r.width_mm is not None:candidates.append(r)
         if candidates:
             cluster=_consensus_cluster(candidates)
