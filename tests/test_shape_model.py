@@ -87,7 +87,9 @@ def test_txt_export_promotes_accepted_gerber_body(tmp_path):
 def test_review_ui_labels_distinguish_paste_candidates_and_provenance():
     from pathlib import Path
     source=Path("ui/main_window.py").read_text(encoding="utf-8")
-    assert "Paste Pads / Pitch Candidate (mm)" in source
+    assert "Paste Envelope L×W (mm)" in source
+    assert "Paste Pad L×W / Count / Pitch (mm)" in source
+    assert "Paste geometry only — not body size" in source
     assert "Dimension Source / Confidence" in source
     assert "Review Status" in source
     assert "Confidence {getattr(x,'confidence','') or 'NONE'}" in source
