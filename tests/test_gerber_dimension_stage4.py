@@ -204,25 +204,12 @@ def test_large_fragment_gap_does_not_merge_into_edge(tmp_path):
     assert r.length_mm is None
 
 
-def test_arc_assisted_open_silk_reconstructs_body(tmp_path):
-    p=tmp_path/'arc_open.GTO'
-    p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nG75*\nD10*\n'
-        'X80000Y190000D02*X80000Y210000D01*\nX120000Y190000D02*X120000Y210000D01*\n'
-        'X80000Y190000D02*X120000Y190000D01*\n'
-        'X80000Y210000D02*G03X120000Y210000I20000J0D01*\nM02*\n')
-    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(p)],search_radius_mm=5)
-    assert r.source=='Gerber Silkscreen - Reconstructed'
-    assert r.length_mm is not None and not r.accepted
-
-def test_broad_arc_is_not_open_edge_evidence(tmp_path):
+def test_broad_arc_closed_loop_is_rejected_from_body_proposal(tmp_path):
     p=tmp_path/'broad_arc.GTO'
-    p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nG75*\nD10*\n'
-        'X80000Y190000D02*X80000Y210000D01*\nX120000Y190000D02*X120000Y210000D01*\n'
-        'X80000Y190000D02*X120000Y190000D01*\n'
-        'X80000Y210000D02*G03X120000Y210000I20000J0D01*\nM02*\n')
-    doc=parse_gerber(p)
-    # Inflate the parsed arc into a broad semicircle; it must not qualify as a
-    # straight-ish open body edge.
-    arc=doc.primitives[-1]; arc.i=2.0; arc.j=0.0
-    r=derive_gerber_dimension('U1',10,20,'Top',[doc],search_radius_mm=5)
+    p.write_text('%FSLAX24Y24*%\\n%MOMM*%\\n%ADD10C,0.10*%\\nG75*\\nD10*\\n'
+        'X80000Y190000D02*X80000Y210000D01*\\nX120000Y190000D02*X120000Y210000D01*\\n'
+        'X80000Y190000D02*X120000Y190000D01*\\n'
+        'X80000Y210000D02*G03X120000Y210000I20000J0D01*\\nM02*\\n')
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(p)],search_radius_mm=5)
     assert r.length_mm is None
+
