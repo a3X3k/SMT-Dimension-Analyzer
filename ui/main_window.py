@@ -101,8 +101,8 @@ class MainWindow(QMainWindow):
         prev=QPushButton("◀ Previous"); prev.clicked.connect(lambda:self._move_review(-1)); nav.addWidget(prev)
         self.ref_search=QLineEdit(); self.ref_search.setPlaceholderText("Find Ref / MPN"); self.ref_search.returnPressed.connect(self._find_component); nav.addWidget(self.ref_search,1)
         nxt=QPushButton("Next ▶"); nxt.clicked.connect(lambda:self._move_review(1)); nav.addWidget(nxt)
-        self.table=QTableWidget(0,10)
-        self.table.setHorizontalHeaderLabels(["Ref","MPN","Manufacturer","Package/Type","Body L (mm)","Body W (mm)","Body H (mm)","Paste Pads / Pitch Candidate (mm)","Dimension Source / Confidence","Review Status"])
+        self.table=QTableWidget(0,12)
+        self.table.setHorizontalHeaderLabels(["Ref","MPN","Manufacturer","Package/Type","Body L (mm)","Body W (mm)","Body H (mm)","Paste Envelope L×W (mm)","Paste Pad L×W / Count / Pitch (mm)","Dimension Source / Confidence","Review Status","Paste Evidence"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows); self.table.itemSelectionChanged.connect(self._table_selected); l.addWidget(self.table,1)
         self.review_info=QLabel("Import CAD, BOM and Gerber, then Analyze Dimensions."); self.review_info.setWordWrap(True); l.addWidget(self.review_info)
         form=QFormLayout(); self.manual_l=QDoubleSpinBox(); self.manual_w=QDoubleSpinBox()
@@ -218,7 +218,7 @@ class MainWindow(QMainWindow):
         self.workspace.set_alignment(self.dx,self.dy,self.da)
         if self.state.dimension_results:
             self.state.dimension_results={}; self.state.shape_models={}
-            for r in range(self.table.rowCount()): self.table.setItem(r,9,QTableWidgetItem("RE-ANALYZE AFTER ALIGNMENT"))
+            for r in range(self.table.rowCount()): self.table.setItem(r,10,QTableWidgetItem("RE-ANALYZE AFTER ALIGNMENT"))
         self._update_status()
 
     def _nudge(self,x,y,a):
@@ -227,7 +227,7 @@ class MainWindow(QMainWindow):
     def _populate(self):
         self.table.setRowCount(len(self.state.unique_parts))
         for r,p in enumerate(self.state.unique_parts):
-            for col,val in enumerate([p.representative_ref,p.mpn,"","","","","","","","WAITING"]): self.table.setItem(r,col,QTableWidgetItem(val))
+            for col,val in enumerate([p.representative_ref,p.mpn,"","","","","","","","","WAITING",""]): self.table.setItem(r,col,QTableWidgetItem(val))
         self.table.resizeColumnsToContents()
 
     def _move_review(self,step):
@@ -302,12 +302,16 @@ class MainWindow(QMainWindow):
             if not x:continue
             self.table.setItem(r,4,QTableWidgetItem(str(getattr(x,"length_mm","") or ""))); self.table.setItem(r,5,QTableWidgetItem(str(getattr(x,"width_mm","") or "")))
             self.table.setItem(r,6,QTableWidgetItem(str(getattr(x,"height_mm","") or "")))
-            self.table.setItem(r,7,QTableWidgetItem(f"{getattr(x,'pad_count',None) or ''} / {getattr(x,'pitch_mm',None) or ''}"))
+            pl=getattr(x,'paste_length_mm',None); pw=getattr(x,'paste_width_mm',None)
+            padl=getattr(x,'paste_pad_length_mm',None); padw=getattr(x,'paste_pad_width_mm',None)
+            self.table.setItem(r,7,QTableWidgetItem(f"{pl or ''} × {pw or ''}" if pl and pw else ""))
+            self.table.setItem(r,8,QTableWidgetItem(f"{padl or ''} × {padw or ''} / {getattr(x,'pad_count',None) or ''} / {getattr(x,'pitch_mm',None) or ''}" if getattr(x,'pad_count',None) else ""))
             shape=self.state.shape_models.get(p.mpn)
             if shape and shape.package_type:self.table.setItem(r,3,QTableWidgetItem(f"{shape.package_type} [{shape.package_family}]"))
             elif shape:self.table.setItem(r,3,QTableWidgetItem(shape.package_family))
-            self.table.setItem(r,8,QTableWidgetItem(f"{getattr(x,'source','')} / {getattr(x,'confidence','') or 'NONE'}"))
-            self.table.setItem(r,9,QTableWidgetItem(getattr(x,"status","MANUAL REVIEW")))
+            self.table.setItem(r,9,QTableWidgetItem(f"{getattr(x,'source','')} / {getattr(x,'confidence','') or 'NONE'}"))
+            self.table.setItem(r,10,QTableWidgetItem(getattr(x,"status","MANUAL REVIEW")))
+            self.table.setItem(r,11,QTableWidgetItem("Paste geometry only — not body size" if getattr(x,'paste_length_mm',None) else ""))
         self._update_status()
 
     def _apply_adjust(self):
@@ -317,7 +321,7 @@ class MainWindow(QMainWindow):
         if not x:return
         x.length_mm=round(self.manual_l.value(),4); x.width_mm=round(self.manual_w.value(),4); x.source="USER - Manual Body Adjustment"; x.confidence="USER CONFIRMED"; x.status="WAITING FOR USER ACCEPTANCE"; x.accepted=False
         self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
-        self.table.setItem(r,4,QTableWidgetItem(str(x.length_mm))); self.table.setItem(r,5,QTableWidgetItem(str(x.width_mm))); self.table.setItem(r,8,QTableWidgetItem(f"{x.source} / {x.confidence}")); self.table.setItem(r,9,QTableWidgetItem(x.status)); self._update_status()
+        self.table.setItem(r,4,QTableWidgetItem(str(x.length_mm))); self.table.setItem(r,5,QTableWidgetItem(str(x.width_mm))); self.table.setItem(r,9,QTableWidgetItem(f"{x.source} / {x.confidence}")); self.table.setItem(r,10,QTableWidgetItem(x.status)); self._update_status()
 
     def _accept_dimension(self):
         r=self.table.currentRow()
@@ -327,7 +331,7 @@ class MainWindow(QMainWindow):
             x.accepted=True; x.status="USER ACCEPTED"
             if "User Confirmed" not in x.source:x.source=(x.source+" - User Confirmed").strip(" -")
             self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
-            self.table.setItem(r,9,QTableWidgetItem(x.status)); self._update_status()
+            self.table.setItem(r,10,QTableWidgetItem(x.status)); self._update_status()
 
     def _reject_dimension(self):
         r=self.table.currentRow()
@@ -335,7 +339,7 @@ class MainWindow(QMainWindow):
         x=self.state.dimension_results.get(self.state.unique_parts[r].mpn)
         if x:x.accepted=False; x.status="MANUAL REVIEW"
         self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
-        self.table.setItem(r,9,QTableWidgetItem("MANUAL REVIEW")); self._update_status()
+        self.table.setItem(r,10,QTableWidgetItem("MANUAL REVIEW")); self._update_status()
 
     def _export(self):
         folder=QFileDialog.getExistingDirectory(self,"Export folder")
