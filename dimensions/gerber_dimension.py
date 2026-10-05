@@ -105,6 +105,45 @@ def _body_candidate(doc,x,y,r,tol=.08):
     loops.sort(key=lambda z:(z[0][2]-z[0][0])*(z[0][3]-z[0][1]))
     return loops[0]
 
+def _open_body_candidate(doc,x,y,r,rotation,tol=.12):
+    """Conservative open-silkscreen envelope in component-local axes."""
+    a=radians(-float(rotation or 0.0)); ca,sa=cos(a),sin(a); segs=[]
+    for i,p in enumerate(doc.primitives):
+        if p.polarity!="DARK" or p.kind!="line" or None in (p.x,p.y,p.x2,p.y2):continue
+        b=_bbox(doc,p)
+        if not _near(b,x,y,r):continue
+        pts=[]
+        for px,py in ((p.x,p.y),(p.x2,p.y2)):
+            pts.append(((px-x)*ca-(py-y)*sa,(px-x)*sa+(py-y)*ca))
+        dx=abs(pts[1][0]-pts[0][0]); dy=abs(pts[1][1]-pts[0][1])
+        if max(dx,dy)<.15:continue
+        orientation="H" if dx>=dy*3 else "V" if dy>=dx*3 else None
+        if orientation:segs.append((i,orientation,pts))
+    if len(segs)<3:return None,[]
+    hs=[]; vs=[]
+    for i,o,pts in segs:
+        if o=="H":
+            hs.append((i,(pts[0][1]+pts[1][1])/2,min(pts[0][0],pts[1][0]),max(pts[0][0],pts[1][0])))
+        else:
+            vs.append((i,(pts[0][0]+pts[1][0])/2,min(pts[0][1],pts[1][1]),max(pts[0][1],pts[1][1])))
+    negx=[q for q in vs if q[1]<-tol]; posx=[q for q in vs if q[1]>tol]
+    negy=[q for q in hs if q[1]<-tol]; posy=[q for q in hs if q[1]>tol]
+    if not (negx and posx and negy and posy):return None,[]
+    left=max(negx,key=lambda q:q[1]); right=min(posx,key=lambda q:q[1])
+    bottom=max(negy,key=lambda q:q[1]); top=min(posy,key=lambda q:q[1])
+    width=right[1]-left[1]; height=top[1]-bottom[1]
+    if not(.15<=width<=50 and .15<=height<=50):return None,[]
+    # Require each selected edge to span a meaningful fraction of its opposing dimension.
+    if min(left[3]-left[2],right[3]-right[2])<height*.25:return None,[]
+    if min(bottom[3]-bottom[2],top[3]-top[2])<width*.25:return None,[]
+    ids=[left[0],right[0],bottom[0],top[0]]
+    corners=[]
+    aa=radians(float(rotation or 0.0)); c0,s0=cos(aa),sin(aa)
+    for lx,ly in ((left[1],bottom[1]),(left[1],top[1]),(right[1],bottom[1]),(right[1],top[1])):
+        corners.append((x+lx*c0-ly*s0,y+lx*s0+ly*c0))
+    xs=[q[0] for q in corners]; ys=[q[1] for q in corners]
+    return (min(xs),min(ys),max(xs),max(ys)),ids
+
 def _pitch(values):
     vals=sorted(set(round(v,4) for v in values))
     ds=[round(vals[i+1]-vals[i],4) for i in range(len(vals)-1) if vals[i+1]-vals[i]>.05]
@@ -133,15 +172,21 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
     for wanted,source,conf in [(SILK_LAYERS,"Gerber Silkscreen - Proposed","MEDIUM")]:
         for d in docs:
             if d.layer not in wanted:continue
-            b,ids=_body_candidate(d,gx,gy,search_radius_mm)
+            b,ids=_body_candidate(d,gx,gy,search_radius_mm); reconstructed=False
+            if not b:
+                b,ids=_open_body_candidate(d,gx,gy,search_radius_mm,float(cad_rotation or 0.0)-angle)
+                reconstructed=bool(b)
             if not b:continue
             l,w=b[2]-b[0],b[3]-b[1]; cx,cy=(b[0]+b[2])/2,(b[1]+b[3])/2
             if not(.15<=l<=50 and .15<=w<=50 and hypot(cx-gx,cy-gy)<=2.5):continue
-            local=_local_body_size(d,ids,cx,cy,float(cad_rotation or 0.0)-angle)
+            local=_local_body_size(d,ids,gx if reconstructed else cx,gy if reconstructed else cy,float(cad_rotation or 0.0)-angle)
             raw_l,raw_w=(local if local else (l,w))
             b_aligned=_transform_bbox(b,dx,dy,angle); acx,acy=_forward(cx,cy,dx,dy,angle)
-            result=GerberDimensionResult(ref,round(max(raw_l,raw_w),4),round(min(raw_l,raw_w),4),None,source,conf,"WAITING FOR USER ACCEPTANCE",
-                "Closed silkscreen outline proposal only. Disconnected nearby strokes/text are excluded. Use only after user acceptance when reliable MPN/manufacturer dimensions are unavailable. Height not inferred.",round(acx,4),round(acy,4),d.layer,b_aligned,ids)
+            actual_source="Gerber Silkscreen - Reconstructed" if reconstructed else source
+            actual_conf="LOW" if reconstructed else conf
+            note=("Open silkscreen reconstructed from four opposing component-local edge candidates; user review required. " if reconstructed else "Closed silkscreen outline proposal only. Disconnected nearby strokes/text are excluded. ")
+            result=GerberDimensionResult(ref,round(max(raw_l,raw_w),4),round(min(raw_l,raw_w),4),None,actual_source,actual_conf,"WAITING FOR USER ACCEPTANCE",
+                note+"Use only after user acceptance when reliable MPN/manufacturer dimensions are unavailable. Height not inferred.",round(acx,4),round(acy,4),d.layer,b_aligned,ids)
             break
         if result:break
     if not result:result=GerberDimensionResult(ref,remarks="No reliable MPN/manufacturer dimensions supplied and no credible silkscreen body proposal; manual review required.")
