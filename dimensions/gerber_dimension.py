@@ -135,7 +135,7 @@ def _open_body_candidate(doc,x,y,r,rotation,tol=.12):
             for g in groups:
                 coord=sum(x[1] for x in g)/len(g)
                 lo=min(x[2] for x in g); hi=max(x[3] for x in g)
-                if abs(q[1]-coord)<=coord_tol and q[2]<=hi+gap_tol and q[3]>=lo-gap_tol:
+                if abs(q[1]-coord)<=coord_tol and q[2]<=hi+gap_tol+1e-9 and q[3]>=lo-gap_tol-1e-9:
                     g.append(q); placed=True; break
             if not placed:groups.append([q])
         out=[]
