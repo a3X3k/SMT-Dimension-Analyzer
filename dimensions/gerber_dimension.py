@@ -142,12 +142,14 @@ def _open_body_candidate(doc,x,y,r,rotation,tol=.12):
         if p.kind=="arc" and orientation:
             ap=_arc_points(p)
             local=[((px-x)*ca-(py-y)*sa,(px-x)*sa+(py-y)*ca) for px,py in ap]
-            # Reject broad arcs whose bulge is too large to represent a rounded
-            # corner/edge interruption.
+            # A broad arc is not straight edge evidence. More importantly, do
+            # not silently drop it and then mirror a fourth side from the three
+            # remaining straight edges: the arc already occupies that boundary.
             if local:
                 cross=[q[1] for q in local] if orientation=="H" else [q[0] for q in local]
                 chord=(pts[0][1]+pts[1][1])/2 if orientation=="H" else (pts[0][0]+pts[1][0])/2
-                if max(abs(v-chord) for v in cross)>.45:orientation=None
+                if max(abs(v-chord) for v in cross)>.45:
+                    return None,[]
         if orientation:segs.append((i,orientation,pts))
     if len(segs)<3:return None,[]
     hs=[]; vs=[]
