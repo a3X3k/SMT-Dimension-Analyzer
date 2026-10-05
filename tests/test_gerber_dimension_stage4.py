@@ -165,3 +165,18 @@ def test_neighbor_on_other_side_does_not_contaminate_project_candidate(tmp_path)
          CadRecord('U2',x=11,y=20,rotation=0,layer='Bottom')]
     r=derive_project_dimensions(parts,cad,[parse_gerber(silk)],search_radius_mm=5.0)['PN1']
     assert r.length_mm is not None
+
+
+def test_three_sided_open_silk_can_be_reconstructed(tmp_path):
+    p=tmp_path/'three.GTO'
+    p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nD10*\nX80000Y190000D02*X80000Y210000D01*\nX120000Y190000D02*X120000Y210000D01*\nX80000Y190000D02*X95000Y190000D01*\nX105000Y190000D02*X120000Y190000D01*\nM02*\n')
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(p)],search_radius_mm=5)
+    assert r.source=='Gerber Silkscreen - Reconstructed'
+    assert r.confidence=='LOW' and not r.accepted
+    assert abs(r.length_mm-4.1)<.15 and abs(r.width_mm-2.1)<.15
+
+def test_three_sided_asymmetric_silk_is_rejected(tmp_path):
+    p=tmp_path/'asym.GTO'
+    p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nD10*\nX80000Y190000D02*X80000Y210000D01*\nX125000Y190000D02*X125000Y210000D01*\nX80000Y190000D02*X95000Y190000D01*\nX105000Y190000D02*X125000Y190000D01*\nM02*\n')
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(p)],search_radius_mm=5)
+    assert r.length_mm is None
