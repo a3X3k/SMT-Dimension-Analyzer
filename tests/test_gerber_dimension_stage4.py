@@ -118,3 +118,16 @@ def test_ambiguous_single_open_stroke_is_not_body(tmp_path):
     p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.010*%\nD10*\nX090000Y200000D02*\nX110000Y200000D01*\nM02*')
     r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(p)],search_radius_mm=5.0)
     assert r.length_mm is None and r.status=='NOT AVAILABLE / MANUAL REVIEW'
+
+
+def test_project_uses_clearer_same_mpn_instance(tmp_path):
+    from models import UniquePart, CadRecord
+    from dimensions.gerber_dimension import derive_project_dimensions
+    silk=tmp_path/'multi.GTO'
+    _write_rect(silk,30,20,4.0,2.0)
+    parts=[UniquePart('PN1',['U1','U2'],'U1')]
+    cad=[CadRecord('U1',x=10,y=20,rotation=0,layer='Top'),CadRecord('U2',x=30,y=20,rotation=0,layer='Top')]
+    r=derive_project_dimensions(parts,cad,[parse_gerber(silk)],search_radius_mm=5.0)['PN1']
+    assert r.ref=='U2'
+    assert r.source=='Gerber Silkscreen - Proposed'
+    assert 3.99 < r.length_mm < 4.02
