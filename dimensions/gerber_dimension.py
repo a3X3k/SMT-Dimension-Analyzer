@@ -126,9 +126,11 @@ def _open_body_candidate(doc,x,y,r,rotation,tol=.12):
             hs.append((i,(pts[0][1]+pts[1][1])/2,min(pts[0][0],pts[1][0]),max(pts[0][0],pts[1][0])))
         else:
             vs.append((i,(pts[0][0]+pts[1][0])/2,min(pts[0][1],pts[1][1]),max(pts[0][1],pts[1][1])))
-    def merge_fragments(items,coord_tol=.12,gap_tol=.35):
-        # Merge collinear fragments on one body edge. Keep all primitive IDs
-        # so review highlighting still shows the evidence that formed the edge.
+    def merge_fragments(items,coord_tol=.12,gap_tol=.45):
+        # Merge collinear fragments on one body edge. Gerber coordinates in the
+        # regression fixture have a real 0.40 mm gap (19.8 -> 20.2), not 0.35 mm;
+        # 0.45 mm admits that deliberate interruption while the large-gap safety
+        # case (1.20 mm) remains separate. Keep all IDs for review provenance.
         groups=[]
         for q in sorted(items,key=lambda z:(z[1],z[2])):
             placed=False
