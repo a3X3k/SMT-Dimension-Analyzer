@@ -102,8 +102,26 @@ def _body_candidate(doc,x,y,r,tol=.08):
             if box[0]-tol<=x<=box[2]+tol and box[1]-tol<=y<=box[3]+tol:
                 loops.append((box,[segs[j][0] for j in chain]))
     if not loops:return None,[]
-    loops.sort(key=lambda z:(z[0][2]-z[0][0])*(z[0][3]-z[0][1]))
-    return loops[0]
+    # Closed-loop proposals containing arcs are only accepted here when every
+    # arc is geometrically straight-ish. Otherwise defer to the conservative
+    # open/arc reconstruction path, which validates arc bulge explicitly.
+    safe=[]
+    for box,ids in loops:
+        ok=True
+        for i in ids:
+            p=doc.primitives[i]
+            if p.kind!="arc":continue
+            chord=hypot(p.x2-p.x,p.y2-p.y)
+            pts=_arc_points(p)
+            if not pts or chord<=0:ok=False; break
+            # Max distance of sampled arc extrema from the endpoint chord.
+            vx,vy=p.x2-p.x,p.y2-p.y
+            bulge=max(abs(vy*(q[0]-p.x)-vx*(q[1]-p.y))/chord for q in pts)
+            if bulge>.45:ok=False; break
+        if ok:safe.append((box,ids))
+    if not safe:return None,[]
+    safe.sort(key=lambda z:(z[0][2]-z[0][0])*(z[0][3]-z[0][1]))
+    return safe[0]
 
 def _open_body_candidate(doc,x,y,r,rotation,tol=.12):
     """Conservative open-silkscreen envelope in component-local axes."""
