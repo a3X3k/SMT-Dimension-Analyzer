@@ -28,7 +28,7 @@ def test_end_to_end_cad_bom_gerber_review_export(tmp_path):
     bom=tmp_path/'bom.txt'
     bom.write_text('Internal P/N\tRef.Designator\nPN-A\tU1\nPN-B\tU2\n')
     silk=tmp_path/'Silkscreen_top.art'
-    silk.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.010*%\nD10*\nX009000Y019500D02*\nX011000Y019500D01*\nX011000Y020500D01*\nX009000Y020500D01*\nX009000Y019500D01*\nM02*')
+    silk.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.010*%\nD10*\nX090000Y195000D02*\nX110000Y195000D01*\nX110000Y205000D01*\nX090000Y205000D01*\nX090000Y195000D01*\nM02*')
 
     cad_records=parse_cad(cad)
     parts=group_unique_parts(parse_bom(bom))
