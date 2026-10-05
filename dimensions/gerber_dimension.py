@@ -109,15 +109,26 @@ def _open_body_candidate(doc,x,y,r,rotation,tol=.12):
     """Conservative open-silkscreen envelope in component-local axes."""
     a=radians(-float(rotation or 0.0)); ca,sa=cos(a),sin(a); segs=[]
     for i,p in enumerate(doc.primitives):
-        if p.polarity!="DARK" or p.kind!="line" or None in (p.x,p.y,p.x2,p.y2):continue
+        if p.polarity!="DARK" or p.kind not in {"line","arc"} or None in (p.x,p.y,p.x2,p.y2):continue
         b=_bbox(doc,p)
         if not _near(b,x,y,r):continue
-        pts=[]
-        for px,py in ((p.x,p.y),(p.x2,p.y2)):
-            pts.append(((px-x)*ca-(py-y)*sa,(px-x)*sa+(py-y)*ca))
+        raw=[(p.x,p.y),(p.x2,p.y2)]
+        # Arc-assisted reconstruction: use a short arc only as edge evidence
+        # when its endpoints describe a strongly horizontal/vertical chord.
+        # Curved geometry is never used alone to invent a complete body.
+        pts=[((px-x)*ca-(py-y)*sa,(px-x)*sa+(py-y)*ca) for px,py in raw]
         dx=abs(pts[1][0]-pts[0][0]); dy=abs(pts[1][1]-pts[0][1])
         if max(dx,dy)<.15:continue
         orientation="H" if dx>=dy*3 else "V" if dy>=dx*3 else None
+        if p.kind=="arc" and orientation:
+            ap=_arc_points(p)
+            local=[((px-x)*ca-(py-y)*sa,(px-x)*sa+(py-y)*ca) for px,py in ap]
+            # Reject broad arcs whose bulge is too large to represent a rounded
+            # corner/edge interruption.
+            if local:
+                cross=[q[1] for q in local] if orientation=="H" else [q[0] for q in local]
+                chord=(pts[0][1]+pts[1][1])/2 if orientation=="H" else (pts[0][0]+pts[1][0])/2
+                if max(abs(v-chord) for v in cross)>.45:orientation=None
         if orientation:segs.append((i,orientation,pts))
     if len(segs)<3:return None,[]
     hs=[]; vs=[]
