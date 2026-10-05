@@ -10,6 +10,7 @@ class GerberDimensionResult:
     gerber_x:float|None=None; gerber_y:float|None=None; layer:str=""
     body_bbox:tuple|None=None; primitive_ids:list[int]=field(default_factory=list)
     pad_count:int|None=None; pitch_mm:float|None=None; pad_rows:int|None=None; pad_columns:int|None=None
+    paste_length_mm:float|None=None; paste_width_mm:float|None=None; paste_pad_length_mm:float|None=None; paste_pad_width_mm:float|None=None
     accepted:bool=False
 
 def _side(s):
@@ -236,14 +237,27 @@ def _pitch(values):
     return min(((-n,k) for k,n in bins.items()))[1]
 
 def _pad_geometry(doc,x,y,r):
-    pts=[]
+    flashes=[]
     for p in doc.primitives:
         if p.kind!="flash" or p.polarity!="DARK" or p.x is None or p.y is None:continue
-        if abs(p.x-x)<=r and abs(p.y-y)<=r:pts.append((p.x,p.y))
-    if not pts:return None,None,None,None
-    xs=[p[0] for p in pts]; ys=[p[1] for p in pts]; ux=sorted(set(round(v,3) for v in xs)); uy=sorted(set(round(v,3) for v in ys))
+        if abs(p.x-x)<=r and abs(p.y-y)<=r:flashes.append(p)
+    if not flashes:return (None,)*8
+    xs=[p.x for p in flashes]; ys=[p.y for p in flashes]
+    ux=sorted(set(round(v,3) for v in xs)); uy=sorted(set(round(v,3) for v in ys))
     px,py=_pitch(xs),_pitch(ys); candidates=[v for v in (px,py) if v]
-    return len(pts),(min(candidates) if candidates else None),len(uy),len(ux)
+    boxes=[_bbox(doc,p) for p in flashes]; boxes=[b for b in boxes if b]
+    envelope=_union(boxes) if boxes else (min(xs),min(ys),max(xs),max(ys))
+    el,ew=envelope[2]-envelope[0],envelope[3]-envelope[1]
+    sizes=[]
+    for p in flashes:
+        hx,hy=_half(doc,p.aperture)
+        if hx>0 and hy>0:sizes.append((2*hx,2*hy))
+    pad_l=pad_w=None
+    if sizes:
+        # Report the dominant/median-like aperture extent conservatively.
+        sl=sorted(max(a,b) for a,b in sizes); sw=sorted(min(a,b) for a,b in sizes)
+        pad_l=sl[len(sl)//2]; pad_w=sw[len(sw)//2]
+    return len(flashes),(min(candidates) if candidates else None),len(uy),len(ux),round(max(el,ew),4),round(min(el,ew),4),(round(pad_l,4) if pad_l else None),(round(pad_w,4) if pad_w else None)
 
 def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0),cad_rotation=0.0,neighbor_positions=None):
     if x is None or y is None:return GerberDimensionResult(ref,remarks="CAD X/Y required.")
@@ -284,10 +298,12 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
     if not result:result=GerberDimensionResult(ref,remarks="No reliable MPN/manufacturer dimensions supplied and no credible silkscreen body proposal; manual review required.")
     for d in docs:
         if d.layer in PASTE_LAYERS:
-            n,pitch,rows,cols=_pad_geometry(d,gx,gy,search_radius_mm)
+            n,pitch,rows,cols,pl,pw,padl,padw=_pad_geometry(d,gx,gy,search_radius_mm)
             if n:
                 result.pad_count=n; result.pitch_mm=pitch; result.pad_rows=rows; result.pad_columns=cols
-                result.remarks += " Paste flashes are reported as pad/ball candidates; they are not automatically physical pin dimensions."
+                result.paste_length_mm=pl; result.paste_width_mm=pw
+                result.paste_pad_length_mm=padl; result.paste_pad_width_mm=padw
+                result.remarks += " Paste envelope and paste-pad geometry are reported separately; they are not automatically treated as physical body/pin dimensions."
                 break
     return result
 
