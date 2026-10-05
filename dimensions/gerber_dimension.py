@@ -126,6 +126,24 @@ def _open_body_candidate(doc,x,y,r,rotation,tol=.12):
             hs.append((i,(pts[0][1]+pts[1][1])/2,min(pts[0][0],pts[1][0]),max(pts[0][0],pts[1][0])))
         else:
             vs.append((i,(pts[0][0]+pts[1][0])/2,min(pts[0][1],pts[1][1]),max(pts[0][1],pts[1][1])))
+    def merge_fragments(items,coord_tol=.12,gap_tol=.35):
+        # Merge collinear fragments on one body edge. Keep all primitive IDs
+        # so review highlighting still shows the evidence that formed the edge.
+        groups=[]
+        for q in sorted(items,key=lambda z:(z[1],z[2])):
+            placed=False
+            for g in groups:
+                coord=sum(x[1] for x in g)/len(g)
+                lo=min(x[2] for x in g); hi=max(x[3] for x in g)
+                if abs(q[1]-coord)<=coord_tol and q[2]<=hi+gap_tol and q[3]>=lo-gap_tol:
+                    g.append(q); placed=True; break
+            if not placed:groups.append([q])
+        out=[]
+        for g in groups:
+            ids=tuple(x[0] for x in g); coord=sum(x[1] for x in g)/len(g)
+            out.append((ids,coord,min(x[2] for x in g),max(x[3] for x in g)))
+        return out
+    hs=merge_fragments(hs); vs=merge_fragments(vs)
     negx=[q for q in vs if q[1]<-tol]; posx=[q for q in vs if q[1]>tol]
     negy=[q for q in hs if q[1]<-tol]; posy=[q for q in hs if q[1]>tol]
     groups=[bool(negx),bool(posx),bool(negy),bool(posy)]
@@ -164,7 +182,11 @@ def _open_body_candidate(doc,x,y,r,rotation,tol=.12):
     # Require each selected edge to span a meaningful fraction of its opposing dimension.
     if min(left[3]-left[2],right[3]-right[2])<height*.25:return None,[]
     if min(bottom[3]-bottom[2],top[3]-top[2])<width*.25:return None,[]
-    ids=[q[0] for q in (left,right,bottom,top) if q[0]>=0]
+    ids=[]
+    for q in (left,right,bottom,top):
+        qids=q[0]
+        if isinstance(qids,tuple): ids.extend(qids)
+        elif qids>=0: ids.append(qids)
     corners=[]
     aa=radians(float(rotation or 0.0)); c0,s0=cos(aa),sin(aa)
     for lx,ly in ((left[1],bottom[1]),(left[1],top[1]),(right[1],bottom[1]),(right[1],top[1])):
