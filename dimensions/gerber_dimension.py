@@ -141,13 +141,23 @@ def _open_body_candidate(doc,x,y,r,rotation,tol=.12):
     if sum(groups)==3:
         inferred=True
         if left and right:
-            if abs(abs(left[1])-abs(right[1]))>max(.15,.12*(right[1]-left[1])):return None,[]
-            if not bottom: bottom=(-1,-max(abs(left[1]),abs(right[1])),left[1],right[1])
-            elif not top: top=(-1,max(abs(left[1]),abs(right[1])),left[1],right[1])
+            span=right[1]-left[1]
+            if abs(abs(left[1])-abs(right[1]))>max(.15,.08*span):return None,[]
+            # Missing horizontal side: infer its Y from the observed horizontal
+            # side, not from the X half-width. Rectangular bodies need not be square.
+            observed=top if top else bottom
+            inferred_y=-observed[1]
+            if abs(observed[1])<.15:return None,[]
+            if not bottom: bottom=(-1,inferred_y,left[1],right[1])
+            elif not top: top=(-1,inferred_y,left[1],right[1])
         elif bottom and top:
-            if abs(abs(bottom[1])-abs(top[1]))>max(.15,.12*(top[1]-bottom[1])):return None,[]
-            if not left: left=(-1,-max(abs(bottom[1]),abs(top[1])),bottom[1],top[1])
-            elif not right: right=(-1,max(abs(bottom[1]),abs(top[1])),bottom[1],top[1])
+            span=top[1]-bottom[1]
+            if abs(abs(bottom[1])-abs(top[1]))>max(.15,.08*span):return None,[]
+            observed=right if right else left
+            inferred_x=-observed[1]
+            if abs(observed[1])<.15:return None,[]
+            if not left: left=(-1,inferred_x,bottom[1],top[1])
+            elif not right: right=(-1,inferred_x,bottom[1],top[1])
         else:return None,[]
     width=right[1]-left[1]; height=top[1]-bottom[1]
     if not(.15<=width<=50 and .15<=height<=50):return None,[]
