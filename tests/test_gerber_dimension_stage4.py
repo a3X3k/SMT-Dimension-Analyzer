@@ -85,3 +85,36 @@ def test_bottom_side_rotated_body_keeps_local_dimensions(tmp_path):
     r=derive_gerber_dimension('U1',10,20,'Bottom',[parse_gerber(silk)],search_radius_mm=5.0,cad_rotation=30.0)
     assert 3.99 < r.length_mm < 4.02
     assert 1.99 < r.width_mm < 2.02
+
+
+def _write_open_rect(path,cx,cy,w,h,angle=0):
+    from math import cos,sin,radians
+    a=radians(angle); ca,sa=cos(a),sin(a)
+    def tr(x,y): return cx+x*ca-y*sa,cy+x*sa+y*ca
+    def q(v): return str(int(round(v*10000))).zfill(6)
+    segs=[((-w/2,-h/2),(-w/2,h/2)),((w/2,-h/2),(w/2,h/2)),
+          ((-w/2,-h/2),(w*.20,-h/2)),((-w*.20,h/2),(w/2,h/2))]
+    lines=['%FSLAX24Y24*%','%MOMM*%','%ADD10C,0.010*%','D10*']
+    for a0,b0 in segs:
+        x1,y1=tr(*a0); x2,y2=tr(*b0)
+        lines.extend((f'X{q(x1)}Y{q(y1)}D02*',f'X{q(x2)}Y{q(y2)}D01*'))
+    lines.append('M02*'); path.write_text(chr(10).join(lines))
+
+def test_open_silkscreen_reconstructed_for_review(tmp_path):
+    silk=tmp_path/'open.GTO'; _write_open_rect(silk,10,20,4.0,2.0)
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(silk)],search_radius_mm=5.0)
+    assert r.source=='Gerber Silkscreen - Reconstructed'
+    assert r.confidence=='LOW' and r.accepted is False
+    assert 3.99 < r.length_mm < 4.02 and 1.99 < r.width_mm < 2.02
+
+def test_rotated_open_silkscreen_reconstructed_in_component_axes(tmp_path):
+    silk=tmp_path/'open_rot.GBO'; _write_open_rect(silk,10,20,4.0,2.0,30)
+    r=derive_gerber_dimension('U1',10,20,'Bottom',[parse_gerber(silk)],search_radius_mm=5.0,cad_rotation=30)
+    assert r.source=='Gerber Silkscreen - Reconstructed'
+    assert 3.99 < r.length_mm < 4.02 and 1.99 < r.width_mm < 2.02
+
+def test_ambiguous_single_open_stroke_is_not_body(tmp_path):
+    p=tmp_path/'ambiguous.GTO'
+    p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.010*%\nD10*\nX090000Y200000D02*\nX110000Y200000D01*\nM02*')
+    r=derive_gerber_dimension('U1',10,20,'Top',[parse_gerber(p)],search_radius_mm=5.0)
+    assert r.length_mm is None and r.status=='NOT AVAILABLE / MANUAL REVIEW'
