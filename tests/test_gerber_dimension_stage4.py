@@ -145,3 +145,23 @@ def test_same_mpn_consensus_requires_both_dimensions_to_agree():
     from dimensions.gerber_dimension import GerberDimensionResult,_consensus_cluster
     rs=[GerberDimensionResult('U1',5.00,3.00),GerberDimensionResult('U2',5.05,3.40)]
     assert len(_consensus_cluster(rs))==1
+
+
+def test_neighbor_center_inside_candidate_rejects_body(tmp_path):
+    silk=tmp_path/'dense.GTO'; _write_rect(silk,10,20,4.0,2.0)
+    doc=parse_gerber(silk)
+    clean=derive_gerber_dimension('U1',10,20,'Top',[doc],search_radius_mm=5.0,neighbor_positions=[(15,20)])
+    assert clean.length_mm is not None
+    blocked=derive_gerber_dimension('U1',10,20,'Top',[doc],search_radius_mm=5.0,neighbor_positions=[(11,20)])
+    assert blocked.length_mm is None
+    assert blocked.status=='NOT AVAILABLE / MANUAL REVIEW'
+
+def test_neighbor_on_other_side_does_not_contaminate_project_candidate(tmp_path):
+    from models import UniquePart, CadRecord
+    from dimensions.gerber_dimension import derive_project_dimensions
+    silk=tmp_path/'dense2.GTO'; _write_rect(silk,10,20,4.0,2.0)
+    parts=[UniquePart('PN1',['U1'],'U1')]
+    cad=[CadRecord('U1',x=10,y=20,rotation=0,layer='Top'),
+         CadRecord('U2',x=11,y=20,rotation=0,layer='Bottom')]
+    r=derive_project_dimensions(parts,cad,[parse_gerber(silk)],search_radius_mm=5.0)['PN1']
+    assert r.length_mm is not None
