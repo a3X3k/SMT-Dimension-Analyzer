@@ -128,15 +128,33 @@ def _open_body_candidate(doc,x,y,r,rotation,tol=.12):
             vs.append((i,(pts[0][0]+pts[1][0])/2,min(pts[0][1],pts[1][1]),max(pts[0][1],pts[1][1])))
     negx=[q for q in vs if q[1]<-tol]; posx=[q for q in vs if q[1]>tol]
     negy=[q for q in hs if q[1]<-tol]; posy=[q for q in hs if q[1]>tol]
-    if not (negx and posx and negy and posy):return None,[]
-    left=max(negx,key=lambda q:q[1]); right=min(posx,key=lambda q:q[1])
-    bottom=max(negy,key=lambda q:q[1]); top=min(posy,key=lambda q:q[1])
+    groups=[bool(negx),bool(posx),bool(negy),bool(posy)]
+    if sum(groups)<3:return None,[]
+    # Four sides remain preferred. For exactly three sides, infer the missing
+    # boundary only when the observed opposing pair is nearly symmetric about
+    # the CAD origin. This keeps partial-silk recovery conservative.
+    left=max(negx,key=lambda q:q[1]) if negx else None
+    right=min(posx,key=lambda q:q[1]) if posx else None
+    bottom=max(negy,key=lambda q:q[1]) if negy else None
+    top=min(posy,key=lambda q:q[1]) if posy else None
+    inferred=False
+    if sum(groups)==3:
+        inferred=True
+        if left and right:
+            if abs(abs(left[1])-abs(right[1]))>max(.15,.12*(right[1]-left[1])):return None,[]
+            if not bottom: bottom=(-1,-max(abs(left[1]),abs(right[1])),left[1],right[1])
+            elif not top: top=(-1,max(abs(left[1]),abs(right[1])),left[1],right[1])
+        elif bottom and top:
+            if abs(abs(bottom[1])-abs(top[1]))>max(.15,.12*(top[1]-bottom[1])):return None,[]
+            if not left: left=(-1,-max(abs(bottom[1]),abs(top[1])),bottom[1],top[1])
+            elif not right: right=(-1,max(abs(bottom[1]),abs(top[1])),bottom[1],top[1])
+        else:return None,[]
     width=right[1]-left[1]; height=top[1]-bottom[1]
     if not(.15<=width<=50 and .15<=height<=50):return None,[]
     # Require each selected edge to span a meaningful fraction of its opposing dimension.
     if min(left[3]-left[2],right[3]-right[2])<height*.25:return None,[]
     if min(bottom[3]-bottom[2],top[3]-top[2])<width*.25:return None,[]
-    ids=[left[0],right[0],bottom[0],top[0]]
+    ids=[q[0] for q in (left,right,bottom,top) if q[0]>=0]
     corners=[]
     aa=radians(float(rotation or 0.0)); c0,s0=cos(aa),sin(aa)
     for lx,ly in ((left[1],bottom[1]),(left[1],top[1]),(right[1],bottom[1]),(right[1],top[1])):
@@ -195,7 +213,7 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
             b_aligned=_transform_bbox(b,dx,dy,angle); acx,acy=_forward(cx,cy,dx,dy,angle)
             actual_source="Gerber Silkscreen - Reconstructed" if reconstructed else source
             actual_conf="LOW" if reconstructed else conf
-            note=("Open silkscreen reconstructed from four opposing component-local edge candidates; user review required. " if reconstructed else "Closed silkscreen outline proposal only. Disconnected nearby strokes/text are excluded. ")
+            note=(("Open/partial silkscreen reconstructed from component-local opposing edge evidence; user review required. " if reconstructed else "Closed silkscreen outline proposal only. Disconnected nearby strokes/text are excluded. "))
             result=GerberDimensionResult(ref,round(max(raw_l,raw_w),4),round(min(raw_l,raw_w),4),None,actual_source,actual_conf,"WAITING FOR USER ACCEPTANCE",
                 note+"Use only after user acceptance when reliable MPN/manufacturer dimensions are unavailable. Height not inferred.",round(acx,4),round(acy,4),d.layer,b_aligned,ids)
             break
