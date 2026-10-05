@@ -202,8 +202,25 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
 def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0)):
     by_ref={c.ref.strip().upper():c for c in cad_records}; out={}
     for p in unique_parts:
-        c=by_ref.get(p.representative_ref.strip().upper())
-        out[p.mpn]=derive_gerber_dimension(p.representative_ref,getattr(c,"x",None),getattr(c,"y",None),getattr(c,"layer",""),documents,search_radius_mm,alignment,getattr(c,"rotation",0.0)) if c else GerberDimensionResult(p.representative_ref,remarks="Representative reference not found in CAD.")
+        candidates=[]
+        # Try every CAD-backed instance of the same MPN. This avoids rejecting a
+        # part merely because its first/representative silkscreen is incomplete.
+        for ref in p.refs:
+            cad=by_ref.get(ref.strip().upper())
+            if not cad:continue
+            r=derive_gerber_dimension(ref,getattr(cad,"x",None),getattr(cad,"y",None),getattr(cad,"layer",""),documents,search_radius_mm,alignment,getattr(cad,"rotation",0.0))
+            if r.length_mm is not None and r.width_mm is not None:candidates.append(r)
+        if candidates:
+            rank=lambda r:(0 if r.source=="Gerber Silkscreen - Proposed" else 1, -len(r.primitive_ids))
+            best=sorted(candidates,key=rank)[0]
+            if len(candidates)>=2:
+                close=[r for r in candidates if abs(r.length_mm-best.length_mm)<=.15 and abs(r.width_mm-best.width_mm)<=.15]
+                if len(close)>=2:
+                    best.remarks += f" Same-MPN geometry consensus: {len(close)} CAD instances agree within 0.15 mm."
+                    if best.confidence=="LOW":best.confidence="MEDIUM"
+            out[p.mpn]=best
+        else:
+            out[p.mpn]=GerberDimensionResult(p.representative_ref,remarks="No CAD-backed instance produced a credible silkscreen body proposal; manual review required.")
     return out
 
 
