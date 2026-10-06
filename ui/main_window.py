@@ -349,7 +349,7 @@ class MainWindow(QMainWindow):
         cad={c.ref:c for c in self.state.cad_records}
         # Export all measurement evidence. Exporters independently gate
         # unaccepted body dimensions while retaining paste-only evidence.
-        export_excel(Path(folder)/"Shape_Dimensions.xlsx",self.state.unique_parts,cad,self.state.dimension_results)
+        export_excel(Path(folder)/"Shape_Dimensions.xlsx",self.state.unique_parts,cad,self.state.dimension_results,self.state.shape_models)
         export_text(Path(folder)/"Shape_Dimensions.txt",self.state.unique_parts,self.state.dimension_results,self.state.shape_models)
         QMessageBox.information(self,"Export","Created Shape_Dimensions.xlsx and Shape_Dimensions.txt")
 
