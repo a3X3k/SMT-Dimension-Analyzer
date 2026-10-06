@@ -43,7 +43,7 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, sh
         rotation_check="NOT AVAILABLE" if dx is not None else "NOT APPLICABLE"
         status="POSITION PASS / ROTATION NOT VERIFIED" if position_ok else ("WARNING" if dx is not None else "NOT APPLICABLE")
         v.append([p.mpn,p.representative_ref,cx,cy,getattr(c,"rotation",None),gx,gy,dx,dy,rotation_check,status])
-    log=wb.create_sheet("Processing Log"); log.append(["PN","Ref","Source attempted","Source selected","Accepted","Warning / Remarks","Date/time"])
+    log=wb.create_sheet("Processing Log"); log.append(["PN","Ref","Source attempted","Source selected","Review Required","Review Accepted","Warning / Remarks","Date/time"])
     now=datetime.now().isoformat(timespec="seconds")
     for p in unique_parts:
         r=dimension_results.get(p.mpn); s=shape_models.get(p.mpn)
@@ -52,17 +52,19 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, sh
         remarks=(getattr(s,"remarks","") if s else "") or getattr(r,"remarks","")
         # "Accepted" is a Gerber-review decision, not a quality flag for
         # trusted lookup/ODB dimensions. Avoid reporting those as rejected.
-        if accepted:
-            review_state="YES"
-        elif s and any(src and "gerber" not in src.lower() for src in (
+        gerber_field=bool(s and any("gerber" in src.lower() for src in (
             getattr(s,"body_length_source",""),getattr(s,"body_width_source",""),getattr(s,"body_height_source","")
-        )) and not any("gerber" in src.lower() for src in (
+        )))
+        # Legacy/pre-provenance shapes can still be identified by their
+        # aggregate source. Review is required only when Gerber supplies body
+        # geometry; trusted lookup/ODB data does not need user acceptance.
+        review_required=gerber_field or bool(s and not any((
             getattr(s,"body_length_source",""),getattr(s,"body_width_source",""),getattr(s,"body_height_source","")
-        )):
-            review_state="NOT REQUIRED"
-        else:
-            review_state="NO"
-        log.append([p.mpn,p.representative_ref,"Silkscreen; Solder Paste; MPN lookup; ODB++",selected,review_state,remarks,now])
+        )) and "gerber" in selected.lower()) or bool(not s and r and any(
+            getattr(r,n,None) is not None for n in ("length_mm","width_mm","height_mm")
+        ))
+        review_accepted="YES" if accepted else ("NO" if review_required else "NOT REQUIRED")
+        log.append([p.mpn,p.representative_ref,"Silkscreen; Solder Paste; MPN lookup; ODB++",selected,"YES" if review_required else "NO",review_accepted,remarks,now])
     for sheet in wb.worksheets:
         for cell in sheet[1]: cell.font=Font(bold=True)
         sheet.freeze_panes="A2"; sheet.auto_filter.ref=sheet.dimensions
