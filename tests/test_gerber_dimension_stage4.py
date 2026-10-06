@@ -319,3 +319,12 @@ def test_consensus_cluster_scales_to_large_same_mpn_population():
     assert len(cluster)==500
     assert max(x.length_mm for x in cluster)-min(x.length_mm for x in cluster)<=.15
     assert max(x.width_mm for x in cluster)-min(x.width_mm for x in cluster)<=.15
+
+
+def test_consensus_representative_rank_is_order_independent():
+    from dimensions.gerber_dimension import GerberDimensionResult
+    a=GerberDimensionResult('U2',length_mm=4.0,width_mm=2.0,source='Gerber Silkscreen - Proposed',primitive_ids=[1,2,3,4])
+    b=GerberDimensionResult('U1',length_mm=4.0,width_mm=2.0,source='Gerber Silkscreen - Proposed',primitive_ids=[5,6,7,8])
+    rank=lambda r:(0 if r.source=='Gerber Silkscreen - Proposed' else 1,-len(r.primitive_ids),round(r.length_mm,6),round(r.width_mm,6),r.ref)
+    assert sorted([a,b],key=rank)[0].ref=='U1'
+    assert sorted([b,a],key=rank)[0].ref=='U1'
