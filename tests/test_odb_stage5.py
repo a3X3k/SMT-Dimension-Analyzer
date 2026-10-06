@@ -114,4 +114,15 @@ def test_zuken_root_steps_component_records_use_native_inches(tmp_path):
     assert len(d.components)==1 and d.units=='MM'
     q=d.components[0]
     assert q.ref=='U2600' and q.mpn==''
-    assert round(q.x,3)==73.0 and round(q.y,3)==46.1 and q.side=='TOP'
+    assert round(q.x,3)==73.0 and round(q.y,3)==46.1 and q.rotation==180 and q.side=='TOP' and q.package=='M3203001350'
+
+
+def test_indexed_native_cmp_record(tmp_path):
+    root=tmp_path/'odb'; layer=root/'steps'/'board'/'layers'/'comp_+_top'
+    layer.mkdir(parents=True)
+    feat=root/'steps'/'board'/'layers'/'signal'/'features'; feat.parent.mkdir(parents=True)
+    feat.write_text('U MM\n')
+    (layer/'components').write_text('CMP 17 1.25 2.5 90 N R42 PKG_A ;3=1\n')
+    d=parse_odb(root); q=d.components[0]
+    assert q.ref=='R42' and q.package=='PKG_A' and q.rotation==90
+    assert round(q.x,3)==31.75 and round(q.y,3)==63.5
