@@ -69,15 +69,18 @@ def _convert_component_to_mm(c, scale):
     return c
 
 def _parse_component_line(line, side, source_file):
-    kv={k.upper():v.strip('"') for k,v in re.findall(r'([A-Za-z_]+)\s*=\s*("[^"]*"|\S+)',line)}
+    kv={k.upper():v.strip('"') for k,v in re.findall(r'([A-Za-z_][A-Za-z0-9_]*)\s*=\s*("[^"]*"|\S+)',line)}
     if kv:
-        ref=kv.get('REF') or kv.get('REFDES') or kv.get('NAME')
+        ref=kv.get('REF') or kv.get('REFDES') or kv.get('REF_DES') or kv.get('NAME') or kv.get('COMP_NAME')
         if ref:
-            return OdbComponent(ref=ref,x=_num(kv.get('X')),y=_num(kv.get('Y')),rotation=_num(kv.get('ROT') or kv.get('ROTATION')),side=(kv.get('SIDE') or side).upper(),package=kv.get('PKG') or kv.get('PACKAGE') or '',mpn=kv.get('MPN') or kv.get('PART') or '',height_mm=_num(kv.get('HEIGHT') or kv.get('H')),length_mm=_num(kv.get('LENGTH') or kv.get('L')),width_mm=_num(kv.get('WIDTH') or kv.get('W')),source_file=source_file,raw=kv)
+            return OdbComponent(ref=ref,x=_num(kv.get('X') or kv.get('X_CENTER')),y=_num(kv.get('Y') or kv.get('Y_CENTER')),rotation=_num(kv.get('ROT') or kv.get('ROTATION') or kv.get('ANGLE')),side=(kv.get('SIDE') or side).upper(),package=kv.get('PKG') or kv.get('PACKAGE') or kv.get('FOOTPRINT') or '',mpn=kv.get('MPN') or kv.get('PART') or kv.get('PART_NUMBER') or '',height_mm=_num(kv.get('HEIGHT') or kv.get('H')),length_mm=_num(kv.get('LENGTH') or kv.get('L')),width_mm=_num(kv.get('WIDTH') or kv.get('W')),source_file=source_file,raw=kv)
     toks=line.split()
     if toks and toks[0].upper() in {'CMP','COMP','COMPONENT','C'} and len(toks)>=4:
         if _num(toks[2]) is not None and _num(toks[3]) is not None:
             return OdbComponent(ref=toks[1],x=float(toks[2]),y=float(toks[3]),rotation=_num(toks[4]) if len(toks)>4 else None,side=side,package=toks[5] if len(toks)>5 else '',source_file=source_file,raw={'line':line})
+    # Common ODB++ component placement record: CMP <x> <y> <angle> <mirror> <ref> ...
+    if toks and toks[0].upper() in {'CMP','COMP'} and len(toks)>=6 and _num(toks[1]) is not None and _num(toks[2]) is not None:
+        return OdbComponent(ref=toks[5].strip('"'),x=float(toks[1]),y=float(toks[2]),rotation=_num(toks[3]),side=side,package=toks[6].strip('"') if len(toks)>6 else '',source_file=source_file,raw={'line':line})
     return None
 
 def _parse_components_file(path: Path, side: str, warnings):
@@ -105,26 +108,26 @@ def parse_odb(path) -> OdbDocument:
             doc.warnings.append("Conflicting ODB++ unit declarations found; dimensional values are withheld for manual review.")
         else:
             doc.warnings.append("ODB++ units not found; dimensional values are withheld for manual review.")
-        for jobsdir in root.rglob('jobs'):
-            if not jobsdir.is_dir(): continue
+        # Archives often contain a wrapper directory and some exporters vary
+        # case. Search semantically instead of requiring root/jobs exactly.
+        for jobsdir in (p for p in root.rglob('*') if p.is_dir() and p.name.lower()=='jobs'):
             for job in jobsdir.iterdir():
                 if not job.is_dir(): continue
                 doc.jobs.append(job.name)
-                steps=job/'steps'
+                steps=next((p for p in job.iterdir() if p.is_dir() and p.name.lower()=='steps'),job/'steps')
                 if not steps.is_dir(): continue
                 for step in steps.iterdir():
                     if not step.is_dir(): continue
                     doc.steps.append(f"{job.name}/{step.name}")
-                    layers=step/'layers'
+                    layers=next((p for p in step.iterdir() if p.is_dir() and p.name.lower()=='layers'),step/'layers')
                     if layers.is_dir():
                         for layer in layers.iterdir():
                             lname=layer.name.lower()
                             side='TOP' if ('top' in lname or lname.endswith('_+_top')) else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
-                            comp=layer/'components'
+                            comp=next((p for p in layer.iterdir() if p.is_file() and p.name.lower() in {'components','component','comps'}),layer/'components')
                             if comp.is_file() and ('comp' in lname or side): doc.components.extend(_parse_components_file(comp,side,doc.warnings))
                     if not doc.components:
-                        for comp in step.rglob('components'):
-                            if comp.is_file():
+                        for comp in (p for p in step.rglob('*') if p.is_file() and p.name.lower() in {'components','component','comps'}):
                                 lname=str(comp.parent).lower(); side='TOP' if 'top' in lname else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
                                 doc.components.extend(_parse_components_file(comp,side,doc.warnings))
         scale=_scale_to_mm(doc.units)
