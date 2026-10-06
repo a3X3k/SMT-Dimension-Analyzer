@@ -342,3 +342,22 @@ def test_text_export_keeps_unaccepted_gerber_height_as_evidence(tmp_path):
     data=dict(zip(lines[0].split('\t'),lines[1].split('\t')))
     assert data['BODY_H_MM']==''
     assert data['GERBER_H_MM']=='1.2'
+
+
+def test_excel_separates_unaccepted_gerber_body_evidence(tmp_path):
+    from openpyxl import load_workbook
+    from models import UniquePart
+    from dimensions.gerber_dimension import GerberDimensionResult
+    from export.excel_export import export_excel
+    part=UniquePart('ABC',['U1'],'U1')
+    gerber=GerberDimensionResult('U1',length_mm=5.0,width_mm=2.0,height_mm=1.2,accepted=False)
+    out=tmp_path/'evidence.xlsx'
+    export_excel(out,[part],{}, {'ABC':gerber},{})
+    ws=load_workbook(out,data_only=True)['Shape Dimensions']
+    data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
+    assert data['Body Length (mm)'] is None
+    assert data['Body Width (mm)'] is None
+    assert data['Body Height (mm)'] is None
+    assert data['Gerber Length Evidence (mm)']==5.0
+    assert data['Gerber Width Evidence (mm)']==2.0
+    assert data['Gerber Height Evidence (mm)']==1.2
