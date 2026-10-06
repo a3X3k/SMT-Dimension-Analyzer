@@ -21,10 +21,11 @@ def _get_json(url,headers=None,data=None):
 def _number_mm(value):
     """Parse an explicitly metric numeric value without guessing units."""
     if value is None:return None
-    if isinstance(value,(int,float)):return float(value)
+    # A bare number from a distributor parameter does not prove units.
+    # Accept only values that explicitly declare millimetres.
     import re
     s=str(value).strip()
-    m=re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)\s*(?:mm)?",s,re.I)
+    m=re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)\s*mm",s,re.I)
     return float(m.group(1)) if m else None
 
 def _parameters(product):
