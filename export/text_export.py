@@ -9,10 +9,16 @@ def export_text(path, unique_parts, dimension_results=None, shape_models=None):
                 x=getattr(obj,name,None) if obj else None
                 return "" if x is None else str(x).replace("\t"," ").replace("\n"," ")
             accepted=bool(getattr(s,"user_accepted",False) or getattr(r,"accepted",False))
-            gerber_source=bool(s and str(getattr(s,"source","")).lower().startswith("gerber"))
+            source=str(getattr(s,"source","") or "") if s else ""
+            # A mixed source string can contain trusted lookup/ODB dimensions
+            # plus unaccepted Gerber fill-ins. Gate only fields whose value is
+            # identical to the unaccepted Gerber proposal; preserve trusted
+            # dimensions already present in the shape model.
             body_l=v(s,"body_length_mm"); body_w=v(s,"body_width_mm"); body_h=v(s,"body_height_mm")
-            if gerber_source and not accepted:
-                body_l=body_w=body_h=""
+            if not accepted and r:
+                if getattr(s,"body_length_mm",None)==getattr(r,"length_mm",None): body_l=""
+                if getattr(s,"body_width_mm",None)==getattr(r,"width_mm",None): body_w=""
+                if getattr(s,"body_height_mm",None)==getattr(r,"height_mm",None): body_h=""
             row=[
                 p.mpn,p.representative_ref,v(s,"manufacturer"),v(s,"package_type"),v(s,"package_family"),
                 body_l or (v(r,"length_mm") if accepted else ""),body_w or (v(r,"width_mm") if accepted else ""),body_h or (v(r,"height_mm") if accepted else ""),
