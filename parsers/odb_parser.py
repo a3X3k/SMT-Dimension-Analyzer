@@ -88,10 +88,19 @@ def _parse_components_file(path: Path, side: str, warnings):
     out=[]
     try: text=path.read_text(errors='replace')
     except Exception as e: warnings.append(f"Cannot read {path}: {e}"); return out
-    # ODB++ component placement files use inch coordinates in legacy/native
-    # CMP records when they do not carry an explicit U units record. Zuken
-    # CR-8000 ODB 7 exports use this form even when feature files are U MM.
-    explicit=re.search(r'(?im)^\\s*U\\s+(MM|INCH|IN|MIL)\\s*
+    explicit=re.search(r'(?im)^\\s*U\\s+(MM|INCH|IN|MIL)\\s*$',text)
+    component_units=(explicit.group(1).upper() if explicit else 'INCH')
+    if component_units=='IN': component_units='INCH'
+    scale=_scale_to_mm(component_units) or 1.0
+    for line in text.splitlines():
+        s=line.strip()
+        if not s or s.startswith(('#',';','@')) or s.startswith(('PRP ','TOP ','BOT ')): continue
+        item=_parse_component_line(s,side,str(path))
+        if item:
+            item=_convert_component_to_mm(item,scale)
+            item.raw['component_file_units']=component_units
+            out.append(item)
+    return out
 
 def parse_odb(path) -> OdbDocument:
     source=select_odb_source(path); tmp=None
@@ -101,10 +110,16 @@ def parse_odb(path) -> OdbDocument:
     doc=OdbDocument(root=source)
     try:
         units=_detect_units(root)
-        # Feature files commonly declare units as "U MM" / "U INCH".
         if not units:
             feature_units=set()
-            pat=re.compile(r'(?im)^\\s*U\\s+(MM|INCH|IN|MIL)\\s*
+            pat=re.compile(r'(?im)^\\s*U\\s+(MM|INCH|IN|MIL)\\s*$')
+            for p in root.rglob('features'):
+                try: txt=p.read_text(errors='replace')[:4096]
+                except Exception: continue
+                for m in pat.finditer(txt):
+                    u=m.group(1).upper()
+                    feature_units.add('MM' if u=='MM' else ('MIL' if u=='MIL' else 'INCH'))
+            units=feature_units
         if len(units)==1:
             doc.units=next(iter(units))
         elif len(units)>1:
