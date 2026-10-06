@@ -101,8 +101,11 @@ def build_shape_model(part,cad=None,dimension=None,lookup=None):
             else:
                 s.source=dim_source
                 s.confidence=getattr(dimension,"confidence","") or "NONE"
-        s.user_accepted=bool(getattr(dimension,"accepted",False))
-        s.verification=getattr(dimension,"status","NOT AVAILABLE")
+        # Acceptance applies only to dimensions actually supplied by the
+        # review-gated Gerber result. Trusted lookup/ODB dimensions must not
+        # become user-accepted merely because a separate Gerber proposal was.
+        s.user_accepted=bool(gerber_supplied and getattr(dimension,"accepted",False))
+        s.verification=getattr(dimension,"status","NOT AVAILABLE") if gerber_supplied else "NOT REQUIRED"
         s.remarks=getattr(dimension,"remarks","")
 
     # Do not derive dimension confidence from package-family recognition.
