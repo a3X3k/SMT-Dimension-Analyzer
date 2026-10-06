@@ -94,13 +94,15 @@ def build_shape_model(part,cad=None,dimension=None,lookup=None):
 
     gerber_supplied=False
     if dimension:
+        manual_override=bool(getattr(dimension,"manual_body_override",False))
         for dst,src in (("body_length_mm","length_mm"),("body_width_mm","width_mm"),("body_height_mm","height_mm")):
             if getattr(s,dst) is None:
                 v=getattr(dimension,src,None)
                 if v is not None:
                     setattr(s,dst,v)
-                    setattr(s,dst.replace("_mm","_source"),getattr(dimension,"source","") or "Gerber")
-                    gerber_supplied=True
+                    field_source="USER" if manual_override else (getattr(dimension,"source","") or "Gerber")
+                    setattr(s,dst.replace("_mm","_source"),field_source)
+                    gerber_supplied=gerber_supplied or not manual_override
         if gerber_supplied:
             dim_source=getattr(dimension,"source","")
             if s.source:
@@ -111,8 +113,8 @@ def build_shape_model(part,cad=None,dimension=None,lookup=None):
         # Acceptance applies only to dimensions actually supplied by the
         # review-gated Gerber result. Trusted lookup/ODB dimensions must not
         # become user-accepted merely because a separate Gerber proposal was.
-        s.user_accepted=bool(gerber_supplied and getattr(dimension,"accepted",False))
-        s.verification=getattr(dimension,"status","NOT AVAILABLE") if gerber_supplied else "NOT REQUIRED"
+        s.user_accepted=bool((gerber_supplied or manual_override) and getattr(dimension,"accepted",False))
+        s.verification=getattr(dimension,"status","NOT AVAILABLE") if gerber_supplied else ("USER REVIEW" if manual_override else "NOT REQUIRED")
         s.remarks=getattr(dimension,"remarks","")
 
     # Do not derive dimension confidence from package-family recognition.
