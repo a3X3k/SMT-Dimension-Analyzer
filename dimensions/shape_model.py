@@ -16,6 +16,9 @@ class ShapeModel:
     body_length_mm:float|None=None
     body_width_mm:float|None=None
     body_height_mm:float|None=None
+    body_length_source:str=""
+    body_width_source:str=""
+    body_height_source:str=""
     overall_length_mm:float|None=None
     overall_width_mm:float|None=None
     pin_count:int|None=None
@@ -66,6 +69,8 @@ def build_shape_model(part,cad=None,dimension=None,lookup=None):
             v=getattr(lookup,name,None)
             if v is not None:
                 setattr(s,name,v)
+                if name in ("body_length_mm","body_width_mm","body_height_mm"):
+                    setattr(s,name.replace("_mm","_source"),getattr(lookup,"source","") or "Exact MPN lookup")
                 lookup_supplied=True
         if lookup_supplied:
             s.source=getattr(lookup,"source","") or "Exact MPN lookup"
@@ -78,6 +83,7 @@ def build_shape_model(part,cad=None,dimension=None,lookup=None):
         for dst,key in (("body_length_mm","length_mm"),("body_width_mm","width_mm"),("body_height_mm","height_mm")):
             if getattr(s,dst) is None and raw.get(key) is not None:
                 setattr(s,dst,raw[key])
+                setattr(s,dst.replace("_mm","_source"),"ODB++")
                 odb_supplied=True
         if odb_supplied:
             if s.source:
@@ -93,6 +99,7 @@ def build_shape_model(part,cad=None,dimension=None,lookup=None):
                 v=getattr(dimension,src,None)
                 if v is not None:
                     setattr(s,dst,v)
+                    setattr(s,dst.replace("_mm","_source"),getattr(dimension,"source","") or "Gerber")
                     gerber_supplied=True
         if gerber_supplied:
             dim_source=getattr(dimension,"source","")
