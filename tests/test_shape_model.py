@@ -200,3 +200,18 @@ def test_text_export_gates_only_unaccepted_gerber_fields_in_mixed_source(tmp_pat
     assert data['BODY_L_MM']==''
     assert data['BODY_W_MM']==''
     assert data['BODY_H_MM']=='1.0'
+
+
+def test_text_export_gates_unaccepted_gerber_shape_without_raw_result(tmp_path):
+    from models import UniquePart
+    from dimensions.shape_model import ShapeModel
+    from export.text_export import export_text
+    part=UniquePart('ABC',['U1'],'U1')
+    shape=ShapeModel(mpn='ABC',ref='U1',body_length_mm=4.0,body_width_mm=2.0,
+        source='Gerber Silkscreen - Proposed',confidence='MEDIUM',user_accepted=False)
+    out=tmp_path/'shape_only.txt'
+    export_text(out,[part],{}, {'ABC':shape})
+    lines=out.read_text(encoding='utf-8').splitlines()
+    data=dict(zip(lines[0].split('\t'),lines[1].split('\t')))
+    assert data['BODY_L_MM']==''
+    assert data['BODY_W_MM']==''
