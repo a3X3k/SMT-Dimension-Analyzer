@@ -402,4 +402,24 @@ def test_processing_log_does_not_call_trusted_dimensions_rejected(tmp_path):
     export_excel(out,[part],{}, {}, {'ABC':shape})
     ws=load_workbook(out,data_only=True)['Processing Log']
     data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
-    assert data['Accepted']=='NOT REQUIRED'
+    assert data['Review Required']=='NO'
+    assert data['Review Accepted']=='NOT REQUIRED'
+
+
+def test_processing_log_marks_unaccepted_gerber_as_review_required(tmp_path):
+    from openpyxl import load_workbook
+    from models import UniquePart
+    from dimensions.shape_model import ShapeModel
+    from dimensions.gerber_dimension import GerberDimensionResult
+    from export.excel_export import export_excel
+    part=UniquePart('ABC',['U1'],'U1')
+    shape=ShapeModel(mpn='ABC',ref='U1',body_length_mm=5.0,
+        body_length_source='Gerber Silkscreen - Proposed',
+        source='Gerber Silkscreen - Proposed',user_accepted=False)
+    gerber=GerberDimensionResult('U1',length_mm=5.0,accepted=False)
+    out=tmp_path/'review.xlsx'
+    export_excel(out,[part],{}, {'ABC':gerber},{'ABC':shape})
+    ws=load_workbook(out,data_only=True)['Processing Log']
+    data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
+    assert data['Review Required']=='YES'
+    assert data['Review Accepted']=='NO'
