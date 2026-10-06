@@ -153,6 +153,7 @@ def test_exact_mpn_dimension_extraction_does_not_guess_units():
         {'ParameterText':'Body Length','ValueText':'0.25 in'},
         {'ParameterText':'Body Width','ValueText':'250 mil'},
         {'ParameterText':'Body Height','ValueText':'unknown'},
+        {'ParameterText':'Length - Overall','ValueText':'4.9'},
     ]}
     assert _exact_metric_dimensions(product)=={}
 
