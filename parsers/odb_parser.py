@@ -88,11 +88,231 @@ def _parse_components_file(path: Path, side: str, warnings):
     out=[]
     try: text=path.read_text(errors='replace')
     except Exception as e: warnings.append(f"Cannot read {path}: {e}"); return out
+    # ODB++ component placement files use inch coordinates in legacy/native
+    # CMP records when they do not carry an explicit U units record. Zuken
+    # CR-8000 ODB 7 exports use this form even when feature files are U MM.
+    explicit=re.search(r'(?im)^\\s*U\\s+(MM|INCH|IN|MIL)\\s*
+
+def parse_odb(path) -> OdbDocument:
+    source=select_odb_source(path); tmp=None
+    if source.is_file():
+        tmp=Path(tempfile.mkdtemp(prefix='smt_odb_')); _safe_extract(source,tmp); root=tmp
+    else: root=source
+    doc=OdbDocument(root=source)
+    try:
+        units=_detect_units(root)
+        # Feature files commonly declare units as "U MM" / "U INCH".
+        if not units:
+            feature_units=set()
+            pat=re.compile(r'(?im)^\\s*U\\s+(MM|INCH|IN|MIL)\\s*
+        if len(units)==1:
+            doc.units=next(iter(units))
+        elif len(units)>1:
+            doc.warnings.append("Conflicting ODB++ unit declarations found; dimensional values are withheld for manual review.")
+        else:
+            doc.warnings.append("ODB++ units not found; dimensional values are withheld for manual review.")
+        # Archives often contain a wrapper directory and some exporters vary
+        # case. Search semantically instead of requiring root/jobs exactly.
+        jobsdirs=[p for p in root.rglob('*') if p.is_dir() and p.name.lower()=='jobs']
+        for jobsdir in jobsdirs:
+            for job in jobsdir.iterdir():
+                if not job.is_dir(): continue
+                doc.jobs.append(job.name)
+                steps=next((p for p in job.iterdir() if p.is_dir() and p.name.lower()=='steps'),job/'steps')
+                if not steps.is_dir(): continue
+                for step in steps.iterdir():
+                    if not step.is_dir(): continue
+                    doc.steps.append(f"{job.name}/{step.name}")
+                    layers=next((p for p in step.iterdir() if p.is_dir() and p.name.lower()=='layers'),step/'layers')
+                    if layers.is_dir():
+                        for layer in layers.iterdir():
+                            lname=layer.name.lower()
+                            side='TOP' if ('top' in lname or lname.endswith('_+_top')) else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
+                            comp=next((p for p in layer.iterdir() if p.is_file() and p.name.lower() in {'components','component','comps'}),layer/'components')
+                            if comp.is_file() and ('comp' in lname or side): doc.components.extend(_parse_components_file(comp,side,doc.warnings))
+                    if not doc.components:
+                        for comp in (p for p in step.rglob('*') if p.is_file() and p.name.lower() in {'components','component','comps'}):
+                                lname=str(comp.parent).lower(); side='TOP' if 'top' in lname else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
+                                doc.components.extend(_parse_components_file(comp,side,doc.warnings))
+        # Some valid ODB++ jobs (notably Zuken CR-8000) place steps directly
+        # under the job root instead of jobs/<job>/steps.
+        if not doc.components:
+            for steps in (p for p in root.rglob('*') if p.is_dir() and p.name.lower()=='steps'):
+                job_name=steps.parent.name
+                if job_name not in doc.jobs: doc.jobs.append(job_name)
+                for step in steps.iterdir():
+                    if not step.is_dir(): continue
+                    label=f"{job_name}/{step.name}"
+                    if label not in doc.steps: doc.steps.append(label)
+                    layers=next((p for p in step.iterdir() if p.is_dir() and p.name.lower()=='layers'),None)
+                    if not layers: continue
+                    for layer in layers.iterdir():
+                        if not layer.is_dir(): continue
+                        lname=layer.name.lower()
+                        if 'comp' not in lname: continue
+                        side='TOP' if 'top' in lname else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
+                        comp=next((p for p in layer.iterdir() if p.is_file() and p.name.lower()=='components'),None)
+                        if comp: doc.components.extend(_parse_components_file(comp,side,doc.warnings))
+        # Component files are converted independently because their native
+        # units may differ from feature-file units.
+        scale=_scale_to_mm(doc.units)
+        if scale is None:
+            # Keep identity/package metadata but never expose ambiguous numbers as mm.
+            for c in doc.components:
+                c.x=c.y=c.length_mm=c.width_mm=c.height_mm=None
+        if not doc.jobs: doc.warnings.append('No supported ODB++ steps layout found.')
+        if not doc.components: doc.warnings.append('No supported semantic component records found; manual review required.')
+        seen=set(); unique=[]
+        for c in doc.components:
+            k=(c.side.upper(),c.ref.upper())
+            if k not in seen: seen.add(k); unique.append(c)
+        doc.components=unique
+        return doc
+    finally:
+        if tmp: shutil.rmtree(tmp,ignore_errors=True)
+
+def parse_odb_dimensions(path):
+    doc=parse_odb(path)
+    return {"status":"ODB++" if doc.components else "NOT AVAILABLE / MANUAL REVIEW","components":doc.components,"warnings":doc.warnings,"jobs":doc.jobs,"steps":doc.steps}
+,text)
+    component_units=(explicit.group(1).upper() if explicit else 'INCH')
+    if component_units=='IN': component_units='INCH'
+    scale=_scale_to_mm(component_units) or 1.0
     for line in text.splitlines():
         s=line.strip()
-        if not s or s.startswith(('#',';')): continue
+        if not s or s.startswith(('#',';','@')) or s.startswith(('PRP ','TOP ','BOT ')): continue
         c=_parse_component_line(s,side,str(path))
-        if c: out.append(c)
+        if c:
+            c=_convert_component_to_mm(c,scale)
+            c.raw['component_file_units']=component_units
+            out.append(c)
+    return out
+
+def parse_odb(path) -> OdbDocument:
+    source=select_odb_source(path); tmp=None
+    if source.is_file():
+        tmp=Path(tempfile.mkdtemp(prefix='smt_odb_')); _safe_extract(source,tmp); root=tmp
+    else: root=source
+    doc=OdbDocument(root=source)
+    try:
+        units=_detect_units(root)
+        if len(units)==1:
+            doc.units=next(iter(units))
+        elif len(units)>1:
+            doc.warnings.append("Conflicting ODB++ unit declarations found; dimensional values are withheld for manual review.")
+        else:
+            doc.warnings.append("ODB++ units not found; dimensional values are withheld for manual review.")
+        # Archives often contain a wrapper directory and some exporters vary
+        # case. Search semantically instead of requiring root/jobs exactly.
+        for jobsdir in (p for p in root.rglob('*') if p.is_dir() and p.name.lower()=='jobs'):
+            for job in jobsdir.iterdir():
+                if not job.is_dir(): continue
+                doc.jobs.append(job.name)
+                steps=next((p for p in job.iterdir() if p.is_dir() and p.name.lower()=='steps'),job/'steps')
+                if not steps.is_dir(): continue
+                for step in steps.iterdir():
+                    if not step.is_dir(): continue
+                    doc.steps.append(f"{job.name}/{step.name}")
+                    layers=next((p for p in step.iterdir() if p.is_dir() and p.name.lower()=='layers'),step/'layers')
+                    if layers.is_dir():
+                        for layer in layers.iterdir():
+                            lname=layer.name.lower()
+                            side='TOP' if ('top' in lname or lname.endswith('_+_top')) else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
+                            comp=next((p for p in layer.iterdir() if p.is_file() and p.name.lower() in {'components','component','comps'}),layer/'components')
+                            if comp.is_file() and ('comp' in lname or side): doc.components.extend(_parse_components_file(comp,side,doc.warnings))
+                    if not doc.components:
+                        for comp in (p for p in step.rglob('*') if p.is_file() and p.name.lower() in {'components','component','comps'}):
+                                lname=str(comp.parent).lower(); side='TOP' if 'top' in lname else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
+                                doc.components.extend(_parse_components_file(comp,side,doc.warnings))
+        scale=_scale_to_mm(doc.units)
+        if scale is not None:
+            doc.components=[_convert_component_to_mm(c,scale) for c in doc.components]
+        else:
+            # Keep identity/package metadata but never expose ambiguous numbers as mm.
+            for c in doc.components:
+                c.x=c.y=c.length_mm=c.width_mm=c.height_mm=None
+        if not doc.jobs: doc.warnings.append('No canonical jobs/<job>/steps layout found.')
+        if not doc.components: doc.warnings.append('No supported semantic component records found; manual review required.')
+        seen=set(); unique=[]
+        for c in doc.components:
+            k=(c.side.upper(),c.ref.upper())
+            if k not in seen: seen.add(k); unique.append(c)
+        doc.components=unique
+        return doc
+    finally:
+        if tmp: shutil.rmtree(tmp,ignore_errors=True)
+
+def parse_odb_dimensions(path):
+    doc=parse_odb(path)
+    return {"status":"ODB++" if doc.components else "NOT AVAILABLE / MANUAL REVIEW","components":doc.components,"warnings":doc.warnings,"jobs":doc.jobs,"steps":doc.steps}
+)
+            for p in root.rglob('features'):
+                try: txt=p.read_text(errors='replace')[:4096]
+                except Exception: continue
+                for m in pat.finditer(txt):
+                    u=m.group(1).upper(); feature_units.add('MM' if u=='MM' else ('MIL' if u=='MIL' else 'INCH'))
+            units=feature_units
+        if len(units)==1:
+            doc.units=next(iter(units))
+        elif len(units)>1:
+            doc.warnings.append("Conflicting ODB++ unit declarations found; dimensional values are withheld for manual review.")
+        else:
+            doc.warnings.append("ODB++ units not found; dimensional values are withheld for manual review.")
+        # Archives often contain a wrapper directory and some exporters vary
+        # case. Search semantically instead of requiring root/jobs exactly.
+        for jobsdir in (p for p in root.rglob('*') if p.is_dir() and p.name.lower()=='jobs'):
+            for job in jobsdir.iterdir():
+                if not job.is_dir(): continue
+                doc.jobs.append(job.name)
+                steps=next((p for p in job.iterdir() if p.is_dir() and p.name.lower()=='steps'),job/'steps')
+                if not steps.is_dir(): continue
+                for step in steps.iterdir():
+                    if not step.is_dir(): continue
+                    doc.steps.append(f"{job.name}/{step.name}")
+                    layers=next((p for p in step.iterdir() if p.is_dir() and p.name.lower()=='layers'),step/'layers')
+                    if layers.is_dir():
+                        for layer in layers.iterdir():
+                            lname=layer.name.lower()
+                            side='TOP' if ('top' in lname or lname.endswith('_+_top')) else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
+                            comp=next((p for p in layer.iterdir() if p.is_file() and p.name.lower() in {'components','component','comps'}),layer/'components')
+                            if comp.is_file() and ('comp' in lname or side): doc.components.extend(_parse_components_file(comp,side,doc.warnings))
+                    if not doc.components:
+                        for comp in (p for p in step.rglob('*') if p.is_file() and p.name.lower() in {'components','component','comps'}):
+                                lname=str(comp.parent).lower(); side='TOP' if 'top' in lname else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
+                                doc.components.extend(_parse_components_file(comp,side,doc.warnings))
+        scale=_scale_to_mm(doc.units)
+        if scale is not None:
+            doc.components=[_convert_component_to_mm(c,scale) for c in doc.components]
+        else:
+            # Keep identity/package metadata but never expose ambiguous numbers as mm.
+            for c in doc.components:
+                c.x=c.y=c.length_mm=c.width_mm=c.height_mm=None
+        if not doc.jobs: doc.warnings.append('No canonical jobs/<job>/steps layout found.')
+        if not doc.components: doc.warnings.append('No supported semantic component records found; manual review required.')
+        seen=set(); unique=[]
+        for c in doc.components:
+            k=(c.side.upper(),c.ref.upper())
+            if k not in seen: seen.add(k); unique.append(c)
+        doc.components=unique
+        return doc
+    finally:
+        if tmp: shutil.rmtree(tmp,ignore_errors=True)
+
+def parse_odb_dimensions(path):
+    doc=parse_odb(path)
+    return {"status":"ODB++" if doc.components else "NOT AVAILABLE / MANUAL REVIEW","components":doc.components,"warnings":doc.warnings,"jobs":doc.jobs,"steps":doc.steps}
+,text)
+    component_units=(explicit.group(1).upper() if explicit else 'INCH')
+    if component_units=='IN': component_units='INCH'
+    scale=_scale_to_mm(component_units) or 1.0
+    for line in text.splitlines():
+        s=line.strip()
+        if not s or s.startswith(('#',';','@')) or s.startswith(('PRP ','TOP ','BOT ')): continue
+        c=_parse_component_line(s,side,str(path))
+        if c:
+            c=_convert_component_to_mm(c,scale)
+            c.raw['component_file_units']=component_units
+            out.append(c)
     return out
 
 def parse_odb(path) -> OdbDocument:
