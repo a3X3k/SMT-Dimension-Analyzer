@@ -94,3 +94,43 @@ def test_review_ui_labels_distinguish_paste_candidates_and_provenance():
     assert "Review Status" in source
     assert "Confidence {getattr(x,'confidence','') or 'NONE'}" in source
     assert "Accepted {'YES' if getattr(x,'accepted',False) else 'NO'}" in source
+
+
+def test_exports_keep_unaccepted_paste_but_gate_body_dimensions(tmp_path):
+    from models import UniquePart
+    from dimensions.gerber_dimension import GerberDimensionResult
+    from dimensions.shape_model import build_shape_model
+    from export.excel_export import export_excel
+    from export.text_export import export_text
+    from openpyxl import load_workbook
+
+    part=UniquePart('MPN1',['U1'],'U1')
+    result=GerberDimensionResult(
+        'U1',length_mm=4.0,width_mm=2.0,
+        source='Gerber Silkscreen - Proposed',confidence='MEDIUM',
+        paste_length_mm=5.2,paste_width_mm=2.6,
+        paste_pad_length_mm=1.0,paste_pad_width_mm=.5,
+        accepted=False)
+    shape=build_shape_model(part,dimension=result)
+
+    xlsx=tmp_path/'out.xlsx'
+    txt=tmp_path/'out.txt'
+    export_excel(xlsx,[part],{}, {'MPN1':result})
+    export_text(txt,[part],{'MPN1':result},{'MPN1':shape})
+
+    ws=load_workbook(xlsx,data_only=True)['Shape Dimensions']
+    headers=[c.value for c in ws[1]]
+    row=[c.value for c in ws[2]]
+    data=dict(zip(headers,row))
+    assert data['Body Length (mm)'] is None
+    assert data['Body Width (mm)'] is None
+    assert data['Paste Envelope Length (mm)']==5.2
+    assert data['Paste Pad Length (mm)']==1.0
+
+    lines=txt.read_text(encoding='utf-8').splitlines()
+    data=dict(zip(lines[0].split('\t'),lines[1].split('\t')))
+    assert data['BODY_L_MM']==''
+    assert data['BODY_W_MM']==''
+    assert data['PASTE_ENVELOPE_L_MM']=='5.2'
+    assert data['PASTE_PAD_L_MM']=='1.0'
+    assert data['USER_ACCEPTED']=='NO'
