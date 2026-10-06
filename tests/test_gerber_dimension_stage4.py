@@ -285,3 +285,19 @@ def test_plausibility_notes_flag_extreme_geometry_without_inventing_dimensions()
     assert "body aspect ratio above 25:1" in _plausibility_notes(extreme)
     normal=GerberDimensionResult('U3',length_mm=4.0,width_mm=2.0,paste_length_mm=4.5,paste_width_mm=2.5)
     assert _plausibility_notes(normal)==[]
+
+
+def test_project_confidence_requires_repeatable_closed_geometry(tmp_path):
+    from models import CadRecord,UniquePart
+    p=tmp_path/'repeatable.GTO'
+    p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nD10*\n'
+        'X80000Y190000D02*X120000Y190000D01*X120000Y210000D01*X80000Y210000D01*X80000Y190000D01*\n'
+        'X180000Y190000D02*X220000Y190000D01*X220000Y210000D01*X180000Y210000D01*X180000Y190000D01*\n'
+        'X280000Y190000D02*X320000Y190000D01*X320000Y210000D01*X280000Y210000D01*X280000Y190000D01*\nM02*\n')
+    d=parse_gerber(p)
+    part=UniquePart('MPN1',['U1','U2','U3'],'U1')
+    cad=[CadRecord('U1','MPN1',10,20,0,'Top'),CadRecord('U2','MPN1',20,20,0,'Top'),CadRecord('U3','MPN1',30,20,0,'Top')]
+    r=derive_project_dimensions([part],cad,[d])['MPN1']
+    assert r.confidence=='HIGH'
+    assert r.accepted is False
+    assert 'at least 3 same-MPN' in r.remarks
