@@ -12,7 +12,13 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, sh
         body_l=getattr(s,"body_length_mm",None); body_w=getattr(s,"body_width_mm",None); body_h=getattr(s,"body_height_mm",None)
         source=str(getattr(s,"source","") or "") if s else ""
         if not accepted:
-            if r:
+            provenance_available=s and any(getattr(s,n,"") for n in ("body_length_source","body_width_source","body_height_source"))
+            if provenance_available:
+                if "gerber" in getattr(s,"body_length_source","").lower(): body_l=None
+                if "gerber" in getattr(s,"body_width_source","").lower(): body_w=None
+                if "gerber" in getattr(s,"body_height_source","").lower(): body_h=None
+            elif r:
+                # Backward compatibility for older ShapeModel instances.
                 if body_l==getattr(r,"length_mm",None): body_l=None
                 if body_w==getattr(r,"width_mm",None): body_w=None
                 if body_h==getattr(r,"height_mm",None): body_h=None
