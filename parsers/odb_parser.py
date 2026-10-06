@@ -75,12 +75,13 @@ def _parse_component_line(line, side, source_file):
         if ref:
             return OdbComponent(ref=ref,x=_num(kv.get('X') or kv.get('X_CENTER')),y=_num(kv.get('Y') or kv.get('Y_CENTER')),rotation=_num(kv.get('ROT') or kv.get('ROTATION') or kv.get('ANGLE')),side=(kv.get('SIDE') or side).upper(),package=kv.get('PKG') or kv.get('PACKAGE') or kv.get('FOOTPRINT') or '',mpn=kv.get('MPN') or kv.get('PART') or kv.get('PART_NUMBER') or '',height_mm=_num(kv.get('HEIGHT') or kv.get('H')),length_mm=_num(kv.get('LENGTH') or kv.get('L')),width_mm=_num(kv.get('WIDTH') or kv.get('W')),source_file=source_file,raw=kv)
     toks=line.split()
+    # Common ODB++ component placement record: CMP <x> <y> <angle> <mirror> <ref> ...
+    # Test this before the legacy ref-first form because both begin with CMP.
+    if toks and toks[0].upper() in {'CMP','COMP'} and len(toks)>=6 and _num(toks[1]) is not None and _num(toks[2]) is not None:
+        return OdbComponent(ref=toks[5].strip('"'),x=float(toks[1]),y=float(toks[2]),rotation=_num(toks[3]),side=side,package=toks[6].strip('"') if len(toks)>6 else '',source_file=source_file,raw={'line':line})
     if toks and toks[0].upper() in {'CMP','COMP','COMPONENT','C'} and len(toks)>=4:
         if _num(toks[2]) is not None and _num(toks[3]) is not None:
             return OdbComponent(ref=toks[1],x=float(toks[2]),y=float(toks[3]),rotation=_num(toks[4]) if len(toks)>4 else None,side=side,package=toks[5] if len(toks)>5 else '',source_file=source_file,raw={'line':line})
-    # Common ODB++ component placement record: CMP <x> <y> <angle> <mirror> <ref> ...
-    if toks and toks[0].upper() in {'CMP','COMP'} and len(toks)>=6 and _num(toks[1]) is not None and _num(toks[2]) is not None:
-        return OdbComponent(ref=toks[5].strip('"'),x=float(toks[1]),y=float(toks[2]),rotation=_num(toks[3]),side=side,package=toks[6].strip('"') if len(toks)>6 else '',source_file=source_file,raw={'line':line})
     return None
 
 def _parse_components_file(path: Path, side: str, warnings):
