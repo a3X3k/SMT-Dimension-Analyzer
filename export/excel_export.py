@@ -33,7 +33,11 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, sh
     log=wb.create_sheet("Processing Log"); log.append(["PN","Ref","Source attempted","Source selected","Accepted","Warning / Remarks","Date/time"])
     now=datetime.now().isoformat(timespec="seconds")
     for p in unique_parts:
-        r=dimension_results.get(p.mpn); log.append([p.mpn,p.representative_ref,"Silkscreen; Solder Paste; MPN lookup",getattr(r,"source",""),"YES" if getattr(r,"accepted",False) else "NO",getattr(r,"remarks",""),now])
+        r=dimension_results.get(p.mpn); s=shape_models.get(p.mpn)
+        selected=(getattr(s,"source","") if s else "") or getattr(r,"source","")
+        accepted=bool(getattr(s,"user_accepted",False) or getattr(r,"accepted",False))
+        remarks=(getattr(s,"remarks","") if s else "") or getattr(r,"remarks","")
+        log.append([p.mpn,p.representative_ref,"Silkscreen; Solder Paste; MPN lookup; ODB++",selected,"YES" if accepted else "NO",remarks,now])
     for sheet in wb.worksheets:
         for cell in sheet[1]: cell.font=Font(bold=True)
         sheet.freeze_panes="A2"; sheet.auto_filter.ref=sheet.dimensions
