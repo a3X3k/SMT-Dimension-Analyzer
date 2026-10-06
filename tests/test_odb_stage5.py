@@ -101,3 +101,17 @@ def test_odb_case_insensitive_layout_and_native_cmp_record(tmp_path):
     assert d.jobs==['job1'] and len(d.components)==1
     q=d.components[0]
     assert q.ref=='U17' and q.x==10.5 and q.y==20.25 and q.rotation==90 and q.package=='QFN32'
+
+
+def test_zuken_root_steps_component_records_use_native_inches(tmp_path):
+    root=tmp_path/'zuken'; layer=root/'steps'/'board.pcb'/'layers'/'comp_+_top'
+    layer.mkdir(parents=True)
+    feat=root/'steps'/'board.pcb'/'layers'/'signal'/'features'; feat.parent.mkdir(parents=True)
+    feat.write_text('#\n#Units\n#\nU MM\n')
+    (root/'misc').mkdir(); (root/'misc'/'info').write_text('ODB_VERSION_MAJOR=7\nODB_SOURCE=ZUKEN CR-8000 Board Designer\n')
+    (layer/'components').write_text('@0 .comp_mount_type\nCMP 2 2.87401575 1.81496063 180 N U2600 M3203001350 ;0=1\n')
+    d=parse_odb(root)
+    assert len(d.components)==1 and d.units=='MM'
+    q=d.components[0]
+    assert q.ref=='U2600' and q.mpn==''
+    assert round(q.x,3)==73.0 and round(q.y,3)==46.1 and q.side=='TOP'
