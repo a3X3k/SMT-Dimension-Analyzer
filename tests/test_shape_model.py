@@ -424,3 +424,26 @@ def test_processing_log_marks_unaccepted_gerber_as_review_required(tmp_path):
     data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
     assert data['Review Required']=='YES'
     assert data['Review Accepted']=='NO'
+
+
+def test_manual_body_override_survives_shape_rebuild_and_export(tmp_path):
+    from models import UniquePart
+    from dimensions.gerber_dimension import GerberDimensionResult
+    from dimensions.shape_model import build_shape_model
+    from export.text_export import export_text
+    part=UniquePart('ABC',['U1'],'U1')
+    edited=GerberDimensionResult('U1',length_mm=5.5,width_mm=2.2,source='USER - Manual Body Adjustment',
+        confidence='USER CONFIRMED',status='WAITING FOR USER ACCEPTANCE',accepted=False)
+    edited.manual_body_override=True
+    shape=build_shape_model(part,None,edited,None)
+    assert shape.body_length_source=='USER'
+    assert shape.body_width_source=='USER'
+    assert shape.verification=='USER REVIEW'
+    out=tmp_path/'manual.txt'
+    export_text(out,[part],{'ABC':edited},{'ABC':shape})
+    lines=out.read_text(encoding='utf-8').splitlines()
+    data=dict(zip(lines[0].split('\t'),lines[1].split('\t')))
+    assert data['BODY_L_MM']=='5.5'
+    assert data['BODY_W_MM']=='2.2'
+    assert data['BODY_L_SOURCE']=='USER'
+    assert data['BODY_W_SOURCE']=='USER'
