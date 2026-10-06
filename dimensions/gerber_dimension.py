@@ -314,23 +314,29 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
     return result
 
 def _consensus_cluster(candidates,tol=.15):
-    """Largest pairwise-compatible L/W cluster, independent of input order."""
-    from itertools import combinations
-    def compatible(a,b):
-        return abs(a.length_mm-b.length_mm)<=tol and abs(a.width_mm-b.width_mm)<=tol
-    # Component counts are normally small, so exhaustive subsets make the
-    # consensus deterministic and prevent a bridge/seed candidate from
-    # admitting two measurements that disagree with each other.
-    for size in range(len(candidates),0,-1):
-        valid=[list(group) for group in combinations(candidates,size)
-               if all(compatible(a,b) for a,b in combinations(group,2))]
-        if valid:
-            def key(group):
-                ls=sorted(r.length_mm for r in group); ws=sorted(r.width_mm for r in group)
-                spread=(ls[-1]-ls[0])+(ws[-1]-ws[0])
-                return (round(spread,9),tuple(sorted((round(r.length_mm,6),round(r.width_mm,6),r.ref) for r in group)))
-            return min(valid,key=key)
-    return []
+    """Largest pairwise-compatible L/W cluster, deterministic and polynomial."""
+    if not candidates:return []
+    ordered=sorted(candidates,key=lambda r:(r.length_mm,r.width_mm,r.ref))
+    best=[]
+    def key(group):
+        ls=[r.length_mm for r in group]; ws=[r.width_mm for r in group]
+        spread=(max(ls)-min(ls))+(max(ws)-min(ws))
+        return (-len(group),round(spread,9),tuple(sorted((round(r.length_mm,6),round(r.width_mm,6),r.ref) for r in group)))
+    # Pairwise tolerance in two dimensions is equivalent to requiring the
+    # selected length range and width range each to be <= tol. Enumerate each
+    # length window, then find the best width window inside it.
+    for left in range(len(ordered)):
+        window=[]
+        for right in range(left,len(ordered)):
+            if ordered[right].length_mm-ordered[left].length_mm>tol:break
+            window.append(ordered[right])
+        by_width=sorted(window,key=lambda r:(r.width_mm,r.length_mm,r.ref))
+        lo=0
+        for hi in range(len(by_width)):
+            while by_width[hi].width_mm-by_width[lo].width_mm>tol:lo+=1
+            group=by_width[lo:hi+1]
+            if not best or key(group)<key(best):best=list(group)
+    return best
 
 def _plausibility_notes(result):
     """Flag suspicious geometry without inventing package dimensions."""
