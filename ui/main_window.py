@@ -321,6 +321,9 @@ class MainWindow(QMainWindow):
         x=self.state.dimension_results.get(self.state.unique_parts[r].mpn)
         if not x:return
         x.length_mm=round(self.manual_l.value(),4); x.width_mm=round(self.manual_w.value(),4); x.source="USER - Manual Body Adjustment"; x.confidence="USER CONFIRMED"; x.status="WAITING FOR USER ACCEPTANCE"; x.accepted=False
+        # A manual edit is user-authored body evidence, not Gerber evidence.
+        # Preserve that provenance through ShapeModel rebuild/export.
+        x.manual_body_override=True
         self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         self.table.setItem(r,4,QTableWidgetItem(str(x.length_mm))); self.table.setItem(r,5,QTableWidgetItem(str(x.width_mm))); self.table.setItem(r,9,QTableWidgetItem(f"{x.source} / {x.confidence}")); self.table.setItem(r,10,QTableWidgetItem(x.status)); self._update_status()
 
