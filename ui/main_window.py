@@ -345,8 +345,11 @@ class MainWindow(QMainWindow):
         folder=QFileDialog.getExistingDirectory(self,"Export folder")
         if not folder:return
         self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
-        cad={c.ref:c for c in self.state.cad_records}; accepted={k:v for k,v in self.state.dimension_results.items() if getattr(v,"accepted",False)}
-        export_excel(Path(folder)/"Shape_Dimensions.xlsx",self.state.unique_parts,cad,accepted); export_text(Path(folder)/"Shape_Dimensions.txt",self.state.unique_parts,accepted,self.state.shape_models)
+        cad={c.ref:c for c in self.state.cad_records}
+        # Export all measurement evidence. Exporters independently gate
+        # unaccepted body dimensions while retaining paste-only evidence.
+        export_excel(Path(folder)/"Shape_Dimensions.xlsx",self.state.unique_parts,cad,self.state.dimension_results)
+        export_text(Path(folder)/"Shape_Dimensions.txt",self.state.unique_parts,self.state.dimension_results,self.state.shape_models)
         QMessageBox.information(self,"Export","Created Shape_Dimensions.xlsx and Shape_Dimensions.txt")
 
 def run_app():
