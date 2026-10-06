@@ -244,3 +244,20 @@ def test_kicad_roundrect_macro_extents_drive_paste_dimensions(tmp_path):
     assert abs(r.paste_width_mm-.6)<.01
     assert abs(r.paste_pad_length_mm-1.2)<.01
     assert abs(r.paste_pad_width_mm-.6)<.01
+
+
+def test_shallow_arc_closed_loop_remains_valid_body_evidence(tmp_path):
+    # Three straight sides plus a shallow top arc. Its bulge is small enough
+    # to be legitimate silkscreen edge variation, so it must not be discarded
+    # by the broad-arc safety guard.
+    p=tmp_path/'shallow_arc.GTO'
+    p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nG75*\nD10*\n'
+        'X80000Y190000D02*X80000Y210000D01*\n'
+        'X120000Y190000D02*X120000Y210000D01*\n'
+        'X80000Y190000D02*X120000Y190000D01*\n'
+        'X80000Y210000D02*G03X120000Y210000I20000J100000D01*\nM02*\n')
+    d=parse_gerber(p)
+    r=derive_gerber_dimension('U1',10,20,'Top',[d],search_radius_mm=5)
+    assert r.length_mm is not None
+    assert r.width_mm is not None
+    assert r.source=='Gerber Silkscreen - Proposed'
