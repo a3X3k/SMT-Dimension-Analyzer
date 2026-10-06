@@ -261,3 +261,17 @@ def test_shallow_arc_closed_loop_remains_valid_body_evidence(tmp_path):
     assert r.length_mm is not None
     assert r.width_mm is not None
     assert r.source=='Gerber Silkscreen - Proposed'
+
+
+def test_consensus_cluster_is_pairwise_and_order_independent():
+    from dimensions.gerber_dimension import GerberDimensionResult,_consensus_cluster
+    # B bridges A and C under a seed-only rule, while A and C disagree by
+    # more than tolerance. Consensus must never claim all three agree.
+    a=GerberDimensionResult('A',length_mm=4.00,width_mm=2.00)
+    b=GerberDimensionResult('B',length_mm=4.10,width_mm=2.00)
+    c=GerberDimensionResult('C',length_mm=4.20,width_mm=2.00)
+    first=_consensus_cluster([a,b,c],tol=.15)
+    second=_consensus_cluster([c,b,a],tol=.15)
+    assert len(first)==2
+    assert sorted((x.length_mm,x.width_mm) for x in first)==sorted((x.length_mm,x.width_mm) for x in second)
+    assert max(x.length_mm for x in first)-min(x.length_mm for x in first)<=.15
