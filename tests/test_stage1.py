@@ -41,3 +41,13 @@ def test_export_framework(tmp_path):
     rows=text.splitlines()
     assert rows[0].split(chr(9))[:2]==['MPN','REF']
     assert rows[1].split(chr(9))[:2]==['P1','C1']
+
+
+def test_cad_excel_finds_header_after_report_metadata(tmp_path):
+    from openpyxl import Workbook
+    p=tmp_path/'placement.xlsx'; wb=Workbook(); ws=wb.active
+    ws.append(['PCB Placement Report']); ws.append(['Generated','today']); ws.append([])
+    ws.append(['Component Reference','Centre X','Centre Y','Orientation','PCB Side'])
+    ws.append(['U1','12.5 mm','7.25 mm','90 deg','Top']); wb.save(p)
+    r=parse_cad(p)[0]
+    assert r.ref=='U1' and r.x==12.5 and r.y==7.25 and r.rotation==90 and r.layer=='Top'
