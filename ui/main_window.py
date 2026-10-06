@@ -270,9 +270,10 @@ class MainWindow(QMainWindow):
                 data=lookup_mpn(p.mpn); self.state.mpn_lookup_results[p.mpn]=data
                 self.table.setItem(r,2,QTableWidgetItem(data.manufacturer))
                 self.table.setItem(r,3,QTableWidgetItem(data.package_type))
-                self.table.setItem(r,8,QTableWidgetItem(data.source or "MPN lookup"))
+                # Columns 8/9 are paste detail and dimension source respectively.
+                self.table.setItem(r,9,QTableWidgetItem(data.source or "MPN lookup"))
                 if data.status!="EXACT MPN MATCH" and not self.state.dimension_results.get(p.mpn):
-                    self.table.setItem(r,9,QTableWidgetItem(data.status))
+                    self.table.setItem(r,10,QTableWidgetItem(data.status))
         finally:
             QApplication.restoreOverrideCursor()
         self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
