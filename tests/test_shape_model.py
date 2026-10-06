@@ -265,3 +265,20 @@ def test_excel_location_verification_is_not_applicable_without_gerber_match(tmp_
     ws=load_workbook(out,data_only=True)['Location Verification']
     data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
     assert data['Status']=='NOT APPLICABLE'
+
+
+def test_excel_location_pass_does_not_claim_rotation_verified(tmp_path):
+    from openpyxl import load_workbook
+    from types import SimpleNamespace
+    from models import UniquePart
+    from dimensions.gerber_dimension import GerberDimensionResult
+    from export.excel_export import export_excel
+    part=UniquePart('ABC',['U1'],'U1')
+    cad=SimpleNamespace(x=10.0,y=20.0,rotation=90.0)
+    gerber=GerberDimensionResult('U1',gerber_x=10.05,gerber_y=19.95)
+    out=tmp_path/'rotation.xlsx'
+    export_excel(out,[part],{'U1':cad},{'ABC':gerber},{})
+    ws=load_workbook(out,data_only=True)['Location Verification']
+    data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
+    assert data['Rotation Check']=='NOT AVAILABLE'
+    assert data['Status']=='POSITION PASS / ROTATION NOT VERIFIED'
