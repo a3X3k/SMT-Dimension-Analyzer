@@ -15,10 +15,17 @@ def export_text(path, unique_parts, dimension_results=None, shape_models=None):
             # identical to the unaccepted Gerber proposal; preserve trusted
             # dimensions already present in the shape model.
             body_l=v(s,"body_length_mm"); body_w=v(s,"body_width_mm"); body_h=v(s,"body_height_mm")
-            if not accepted and r:
-                if getattr(s,"body_length_mm",None)==getattr(r,"length_mm",None): body_l=""
-                if getattr(s,"body_width_mm",None)==getattr(r,"width_mm",None): body_w=""
-                if getattr(s,"body_height_mm",None)==getattr(r,"height_mm",None): body_h=""
+            if not accepted:
+                if r:
+                    if getattr(s,"body_length_mm",None)==getattr(r,"length_mm",None): body_l=""
+                    if getattr(s,"body_width_mm",None)==getattr(r,"width_mm",None): body_w=""
+                    if getattr(s,"body_height_mm",None)==getattr(r,"height_mm",None): body_h=""
+                elif "gerber" in source.lower():
+                    # Some callers export a pre-built ShapeModel without the
+                    # raw dimension result. In that case provenance is the only
+                    # available evidence, so unaccepted Gerber-derived body
+                    # values must remain gated.
+                    body_l=body_w=body_h=""
             row=[
                 p.mpn,p.representative_ref,v(s,"manufacturer"),v(s,"package_type"),v(s,"package_family"),
                 body_l or (v(r,"length_mm") if accepted else ""),body_w or (v(r,"width_mm") if accepted else ""),body_h or (v(r,"height_mm") if accepted else ""),
