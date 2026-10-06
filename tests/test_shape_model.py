@@ -387,3 +387,19 @@ def test_exports_surface_per_field_body_provenance(tmp_path):
     assert row['Body Length Source']=='Mouser'
     assert row['Body Width Source']=='ODB++'
     assert row['Body Height Source']=='Gerber Silkscreen - Proposed'
+
+
+def test_processing_log_does_not_call_trusted_dimensions_rejected(tmp_path):
+    from openpyxl import load_workbook
+    from models import UniquePart
+    from dimensions.shape_model import ShapeModel
+    from export.excel_export import export_excel
+    part=UniquePart('ABC',['U1'],'U1')
+    shape=ShapeModel(mpn='ABC',ref='U1',body_length_mm=5.0,body_width_mm=2.0,
+        body_length_source='Mouser',body_width_source='Mouser',source='Mouser',
+        verification='NOT REQUIRED',user_accepted=False)
+    out=tmp_path/'trusted.xlsx'
+    export_excel(out,[part],{}, {}, {'ABC':shape})
+    ws=load_workbook(out,data_only=True)['Processing Log']
+    data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
+    assert data['Accepted']=='NOT REQUIRED'
