@@ -328,3 +328,17 @@ def test_build_shape_model_records_each_body_field_source():
     assert shape.body_width_source=='ODB++'
     assert shape.body_height_source=='Gerber Silkscreen - Proposed'
     assert shape.user_accepted is False
+
+
+def test_text_export_keeps_unaccepted_gerber_height_as_evidence(tmp_path):
+    from models import UniquePart
+    from dimensions.gerber_dimension import GerberDimensionResult
+    from export.text_export import export_text
+    part=UniquePart('ABC',['U1'],'U1')
+    gerber=GerberDimensionResult('U1',length_mm=5.0,width_mm=2.0,height_mm=1.2,accepted=False)
+    out=tmp_path/'height.txt'
+    export_text(out,[part],{'ABC':gerber},{})
+    lines=out.read_text(encoding='utf-8').splitlines()
+    data=dict(zip(lines[0].split('\t'),lines[1].split('\t')))
+    assert data['BODY_H_MM']==''
+    assert data['GERBER_H_MM']=='1.2'
