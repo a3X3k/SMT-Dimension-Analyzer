@@ -253,3 +253,15 @@ def test_excel_processing_log_uses_selected_shape_provenance(tmp_path):
     assert data['Source selected']=='Mouser'
     assert data['Accepted']=='NO'
     assert 'ODB++' in data['Source attempted']
+
+
+def test_excel_location_verification_is_not_applicable_without_gerber_match(tmp_path):
+    from openpyxl import load_workbook
+    from models import UniquePart
+    from export.excel_export import export_excel
+    part=UniquePart('ABC',['U1'],'U1')
+    out=tmp_path/'location.xlsx'
+    export_excel(out,[part],{}, {}, {})
+    ws=load_workbook(out,data_only=True)['Location Verification']
+    data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
+    assert data['Status']=='NOT APPLICABLE'
