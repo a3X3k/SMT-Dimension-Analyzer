@@ -275,3 +275,13 @@ def test_consensus_cluster_is_pairwise_and_order_independent():
     assert len(first)==2
     assert sorted((x.length_mm,x.width_mm) for x in first)==sorted((x.length_mm,x.width_mm) for x in second)
     assert max(x.length_mm for x in first)-min(x.length_mm for x in first)<=.15
+
+
+def test_plausibility_notes_flag_extreme_geometry_without_inventing_dimensions():
+    from dimensions.gerber_dimension import GerberDimensionResult,_plausibility_notes
+    tiny=GerberDimensionResult('U1',length_mm=4.0,width_mm=.1)
+    assert "body side below 0.20 mm" in _plausibility_notes(tiny)
+    extreme=GerberDimensionResult('U2',length_mm=60.0,width_mm=1.0)
+    assert "body aspect ratio above 25:1" in _plausibility_notes(extreme)
+    normal=GerberDimensionResult('U3',length_mm=4.0,width_mm=2.0,paste_length_mm=4.5,paste_width_mm=2.5)
+    assert _plausibility_notes(normal)==[]
