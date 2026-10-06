@@ -384,6 +384,17 @@ def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_m
                 best.status="MANUAL REVIEW"
                 best.accepted=False
                 best.remarks += " Plausibility warning: "+"; ".join(flags)+"."
+            else:
+                # Confidence is evidence-based: closed-loop geometry plus
+                # repeatable same-MPN agreement is stronger than either alone.
+                closed=best.source=="Gerber Silkscreen - Proposed"
+                if closed and len(cluster)>=3:
+                    best.confidence="HIGH"
+                    best.remarks += " Confidence HIGH: closed silkscreen geometry confirmed by at least 3 same-MPN CAD instances."
+                elif closed or len(cluster)>=2:
+                    best.confidence="MEDIUM"
+                else:
+                    best.confidence="LOW"
             out[p.mpn]=best
         else:
             out[p.mpn]=GerberDimensionResult(p.representative_ref,remarks="No CAD-backed instance produced a credible silkscreen body proposal; manual review required.")
