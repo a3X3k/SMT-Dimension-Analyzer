@@ -182,3 +182,21 @@ def test_lookup_dimensions_are_not_marked_user_accepted_by_unrelated_gerber():
     assert shape.body_width_mm==4.0
     assert shape.user_accepted is False
     assert shape.verification=='NOT REQUIRED'
+
+
+def test_text_export_gates_only_unaccepted_gerber_fields_in_mixed_source(tmp_path):
+    from models import UniquePart
+    from dimensions.shape_model import ShapeModel
+    from dimensions.gerber_dimension import GerberDimensionResult
+    from export.text_export import export_text
+    part=UniquePart('ABC',['U1'],'U1')
+    shape=ShapeModel(mpn='ABC',ref='U1',body_length_mm=5.0,body_width_mm=2.0,
+        body_height_mm=1.0,source='Mouser + Gerber Silkscreen - Proposed',confidence='HIGH')
+    gerber=GerberDimensionResult('U1',length_mm=5.0,width_mm=2.0,height_mm=None,accepted=False)
+    out=tmp_path/'mixed.txt'
+    export_text(out,[part],{'ABC':gerber},{'ABC':shape})
+    lines=out.read_text(encoding='utf-8').splitlines()
+    data=dict(zip(lines[0].split('\t'),lines[1].split('\t')))
+    assert data['BODY_L_MM']==''
+    assert data['BODY_W_MM']==''
+    assert data['BODY_H_MM']=='1.0'
