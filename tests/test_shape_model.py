@@ -310,3 +310,21 @@ def test_per_field_provenance_preserves_trusted_value_equal_to_gerber(tmp_path):
     assert row['Body Length (mm)']==5.0
     assert row['Body Width (mm)'] is None
     assert row['Body Height (mm)']==1.0
+
+
+def test_build_shape_model_records_each_body_field_source():
+    from types import SimpleNamespace
+    from models import UniquePart
+    from dimensions.shape_model import build_shape_model
+    from dimensions.gerber_dimension import GerberDimensionResult
+    part=UniquePart('ABC',['U1'],'U1')
+    lookup=SimpleNamespace(status='EXACT MPN MATCH',body_length_mm=5.0,body_width_mm=None,body_height_mm=None,
+        pin_count=None,pin_pitch_mm=None,lead_width_mm=None,lead_length_mm=None,bga_rows=None,bga_columns=None,
+        ball_pitch_mm=None,source='Mouser',datasheet_url='',source_url='',confidence='HIGH',package_type='',manufacturer='')
+    cad=SimpleNamespace(raw={'source':'ODB++','width_mm':2.0},ref='U1')
+    gerber=GerberDimensionResult('U1',height_mm=1.0,source='Gerber Silkscreen - Proposed',accepted=False)
+    shape=build_shape_model(part,cad,gerber,lookup)
+    assert shape.body_length_source=='Mouser'
+    assert shape.body_width_source=='ODB++'
+    assert shape.body_height_source=='Gerber Silkscreen - Proposed'
+    assert shape.user_accepted is False
