@@ -28,7 +28,10 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, sh
     for p in unique_parts:
         c=cad_by_ref.get(p.representative_ref); r=dimension_results.get(p.mpn); gx=getattr(r,"gerber_x",None); gy=getattr(r,"gerber_y",None); cx=getattr(c,"x",None); cy=getattr(c,"y",None)
         dx=round(abs(cx-gx),4) if cx is not None and gx is not None else None; dy=round(abs(cy-gy),4) if cy is not None and gy is not None else None
-        status="PASS" if dx is not None and dy is not None and dx<=.10 and dy<=.10 else ("WARNING" if dx is not None else "NOT AVAILABLE")
+        # Location verification is meaningful only for an actual Gerber match.
+        # Trusted lookup/ODB dimensions without Gerber coordinates are not a
+        # failed location check.
+        status="PASS" if dx is not None and dy is not None and dx<=.10 and dy<=.10 else ("WARNING" if dx is not None else "NOT APPLICABLE")
         v.append([p.mpn,p.representative_ref,cx,cy,getattr(c,"rotation",None),gx,gy,dx,dy,status])
     log=wb.create_sheet("Processing Log"); log.append(["PN","Ref","Source attempted","Source selected","Accepted","Warning / Remarks","Date/time"])
     now=datetime.now().isoformat(timespec="seconds")
