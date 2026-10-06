@@ -8,7 +8,10 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None):
     ws.append(headers)
     for p in unique_parts:
         r=dimension_results.get(p.mpn)
-        ws.append([p.mpn,p.representative_ref,"","",getattr(r,"length_mm",None),getattr(r,"width_mm",None),getattr(r,"height_mm",None),"","",getattr(r,"paste_length_mm",None),getattr(r,"paste_width_mm",None),getattr(r,"paste_pad_length_mm",None),getattr(r,"paste_pad_width_mm",None),getattr(r,"pad_count",None),getattr(r,"pitch_mm",None),getattr(r,"pad_rows",None),getattr(r,"pad_columns",None),getattr(r,"source",""),"",getattr(r,"confidence",""),getattr(r,"status","NOT ACCEPTED"),"YES" if getattr(r,"accepted",False) else "NO",getattr(r,"remarks","")])
+        accepted=bool(getattr(r,"accepted",False))
+        # Body dimensions remain review-gated; paste geometry is independent
+        # measurement evidence and is exported even before body acceptance.
+        ws.append([p.mpn,p.representative_ref,"","",getattr(r,"length_mm",None) if accepted else None,getattr(r,"width_mm",None) if accepted else None,getattr(r,"height_mm",None) if accepted else None,"","",getattr(r,"paste_length_mm",None),getattr(r,"paste_width_mm",None),getattr(r,"paste_pad_length_mm",None),getattr(r,"paste_pad_width_mm",None),getattr(r,"pad_count",None),getattr(r,"pitch_mm",None),getattr(r,"pad_rows",None),getattr(r,"pad_columns",None),getattr(r,"source",""),"",getattr(r,"confidence",""),getattr(r,"status","NOT ACCEPTED"),"YES" if getattr(r,"accepted",False) else "NO",getattr(r,"remarks","")])
     v=wb.create_sheet("Location Verification"); v.append(["PN","Ref","CAD X (mm)","CAD Y (mm)","CAD Rotation (deg)","Gerber X (mm)","Gerber Y (mm)","Delta X (mm)","Delta Y (mm)","Status"])
     for p in unique_parts:
         c=cad_by_ref.get(p.representative_ref); r=dimension_results.get(p.mpn); gx=getattr(r,"gerber_x",None); gy=getattr(r,"gerber_y",None); cx=getattr(c,"x",None); cy=getattr(c,"y",None)
