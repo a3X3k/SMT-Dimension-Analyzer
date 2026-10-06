@@ -215,3 +215,25 @@ def test_text_export_gates_unaccepted_gerber_shape_without_raw_result(tmp_path):
     data=dict(zip(lines[0].split('\t'),lines[1].split('\t')))
     assert data['BODY_L_MM']==''
     assert data['BODY_W_MM']==''
+
+
+def test_excel_export_preserves_trusted_shape_dimensions_and_gates_gerber(tmp_path):
+    from openpyxl import load_workbook
+    from models import UniquePart
+    from dimensions.shape_model import ShapeModel
+    from dimensions.gerber_dimension import GerberDimensionResult
+    from export.excel_export import export_excel
+    part=UniquePart('ABC',['U1'],'U1')
+    shape=ShapeModel(mpn='ABC',ref='U1',manufacturer='Acme',body_length_mm=5.0,
+        body_width_mm=2.0,body_height_mm=1.0,source='Mouser + Gerber Silkscreen - Proposed',confidence='HIGH')
+    gerber=GerberDimensionResult('U1',length_mm=5.0,width_mm=2.0,accepted=False,
+        paste_length_mm=6.0,paste_width_mm=3.0)
+    out=tmp_path/'mixed.xlsx'
+    export_excel(out,[part],{}, {'ABC':gerber},{'ABC':shape})
+    ws=load_workbook(out,data_only=True)['Shape Dimensions']
+    data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
+    assert data['Body Length (mm)'] is None
+    assert data['Body Width (mm)'] is None
+    assert data['Body Height (mm)']==1.0
+    assert data['Paste Envelope Length (mm)']==6.0
+    assert data['Manufacturer']=='Acme'
