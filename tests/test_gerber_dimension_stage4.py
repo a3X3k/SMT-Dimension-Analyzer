@@ -289,6 +289,7 @@ def test_plausibility_notes_flag_extreme_geometry_without_inventing_dimensions()
 
 def test_project_confidence_requires_repeatable_closed_geometry(tmp_path):
     from models import CadRecord,UniquePart
+    from dimensions.gerber_dimension import derive_project_dimensions
     p=tmp_path/'repeatable.GTO'
     p.write_text('%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.10*%\nD10*\n'
         'X80000Y190000D02*X120000Y190000D01*X120000Y210000D01*X80000Y210000D01*X80000Y190000D01*\n'
