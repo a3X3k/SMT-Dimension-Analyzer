@@ -90,3 +90,14 @@ def test_odb_height_merges_without_accepting_unreviewed_gerber_body(tmp_path):
     assert m.length_mm==2.0 and m.width_mm==1.0 and m.height_mm==0.8
     assert m.accepted is False
     assert 'Height from ODB++' in m.remarks
+
+
+def test_odb_case_insensitive_layout_and_native_cmp_record(tmp_path):
+    root=tmp_path/'wrapped'/'JOBS'/'job1'/'STEPS'/'pcb'/'LAYERS'/'COMP_+_TOP'
+    root.mkdir(parents=True)
+    (tmp_path/'wrapped'/'matrix').write_text('UNITS=MM\n')
+    (root/'COMPONENTS').write_text('CMP 10.5 20.25 90 N U17 QFN32\n')
+    d=parse_odb(tmp_path/'wrapped')
+    assert d.jobs==['job1'] and len(d.components)==1
+    q=d.components[0]
+    assert q.ref=='U17' and q.x==10.5 and q.y==20.25 and q.rotation==90 and q.package=='QFN32'
