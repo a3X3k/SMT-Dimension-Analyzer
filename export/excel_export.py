@@ -2,16 +2,28 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from datetime import datetime
 
-def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None):
-    cad_by_ref=cad_by_ref or {}; dimension_results=dimension_results or {}; wb=Workbook(); ws=wb.active; ws.title="Shape Dimensions"
+def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, shape_models=None):
+    cad_by_ref=cad_by_ref or {}; dimension_results=dimension_results or {}; shape_models=shape_models or {}; wb=Workbook(); ws=wb.active; ws.title="Shape Dimensions"
     headers=["PN / MPN","Representative Ref","Manufacturer","Package / Type","Body Length (mm)","Body Width (mm)","Body Height (mm)","Overall Length (mm)","Overall Width (mm)","Paste Envelope Length (mm)","Paste Envelope Width (mm)","Paste Pad Length (mm)","Paste Pad Width (mm)","Pin / Ball Count Candidate","Pin / Ball Pitch Candidate (mm)","Pad Rows","Pad Columns","Dimension Source","Source URL","Confidence","Status","User Accepted","Remarks"]
     ws.append(headers)
     for p in unique_parts:
-        r=dimension_results.get(p.mpn)
-        accepted=bool(getattr(r,"accepted",False))
-        # Body dimensions remain review-gated; paste geometry is independent
-        # measurement evidence and is exported even before body acceptance.
-        ws.append([p.mpn,p.representative_ref,"","",getattr(r,"length_mm",None) if accepted else None,getattr(r,"width_mm",None) if accepted else None,getattr(r,"height_mm",None) if accepted else None,"","",getattr(r,"paste_length_mm",None),getattr(r,"paste_width_mm",None),getattr(r,"paste_pad_length_mm",None),getattr(r,"paste_pad_width_mm",None),getattr(r,"pad_count",None),getattr(r,"pitch_mm",None),getattr(r,"pad_rows",None),getattr(r,"pad_columns",None),getattr(r,"source",""),"",getattr(r,"confidence",""),getattr(r,"status","NOT ACCEPTED"),"YES" if getattr(r,"accepted",False) else "NO",getattr(r,"remarks","")])
+        r=dimension_results.get(p.mpn); s=shape_models.get(p.mpn)
+        accepted=bool(getattr(s,"user_accepted",False) or getattr(r,"accepted",False))
+        body_l=getattr(s,"body_length_mm",None); body_w=getattr(s,"body_width_mm",None); body_h=getattr(s,"body_height_mm",None)
+        source=str(getattr(s,"source","") or "") if s else ""
+        if not accepted:
+            if r:
+                if body_l==getattr(r,"length_mm",None): body_l=None
+                if body_w==getattr(r,"width_mm",None): body_w=None
+                if body_h==getattr(r,"height_mm",None): body_h=None
+            elif "gerber" in source.lower():
+                body_l=body_w=body_h=None
+        if not s:
+            body_l=getattr(r,"length_mm",None) if accepted else None
+            body_w=getattr(r,"width_mm",None) if accepted else None
+            body_h=getattr(r,"height_mm",None) if accepted else None
+        # Paste geometry is independent measurement evidence and remains visible.
+        ws.append([p.mpn,p.representative_ref,getattr(s,"manufacturer","") if s else "",getattr(s,"package_type","") if s else "",body_l,body_w,body_h,getattr(s,"overall_length_mm",None) if s else None,getattr(s,"overall_width_mm",None) if s else None,getattr(r,"paste_length_mm",None),getattr(r,"paste_width_mm",None),getattr(r,"paste_pad_length_mm",None),getattr(r,"paste_pad_width_mm",None),getattr(r,"pad_count",None),getattr(r,"pitch_mm",None),getattr(r,"pad_rows",None),getattr(r,"pad_columns",None),getattr(s,"source","") if s else getattr(r,"source",""),getattr(s,"source_url","") if s else "",getattr(s,"confidence","") if s else getattr(r,"confidence",""),getattr(s,"verification","") if s else getattr(r,"status","NOT ACCEPTED"),"YES" if accepted else "NO",getattr(s,"remarks","") if s else getattr(r,"remarks","")])
     v=wb.create_sheet("Location Verification"); v.append(["PN","Ref","CAD X (mm)","CAD Y (mm)","CAD Rotation (deg)","Gerber X (mm)","Gerber Y (mm)","Delta X (mm)","Delta Y (mm)","Status"])
     for p in unique_parts:
         c=cad_by_ref.get(p.representative_ref); r=dimension_results.get(p.mpn); gx=getattr(r,"gerber_x",None); gy=getattr(r,"gerber_y",None); cx=getattr(c,"x",None); cy=getattr(c,"y",None)
