@@ -314,12 +314,23 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
     return result
 
 def _consensus_cluster(candidates,tol=.15):
-    """Largest mutually compatible L/W cluster; deterministic and outlier resistant."""
-    best=[]
-    for seed in candidates:
-        cluster=[r for r in candidates if abs(r.length_mm-seed.length_mm)<=tol and abs(r.width_mm-seed.width_mm)<=tol]
-        if len(cluster)>len(best):best=cluster
-    return best
+    """Largest pairwise-compatible L/W cluster, independent of input order."""
+    from itertools import combinations
+    def compatible(a,b):
+        return abs(a.length_mm-b.length_mm)<=tol and abs(a.width_mm-b.width_mm)<=tol
+    # Component counts are normally small, so exhaustive subsets make the
+    # consensus deterministic and prevent a bridge/seed candidate from
+    # admitting two measurements that disagree with each other.
+    for size in range(len(candidates),0,-1):
+        valid=[list(group) for group in combinations(candidates,size)
+               if all(compatible(a,b) for a,b in combinations(group,2))]
+        if valid:
+            def key(group):
+                ls=sorted(r.length_mm for r in group); ws=sorted(r.width_mm for r in group)
+                spread=(ls[-1]-ls[0])+(ws[-1]-ws[0])
+                return (round(spread,9),tuple(sorted((round(r.length_mm,6),round(r.width_mm,6),r.ref) for r in group)))
+            return min(valid,key=key)
+    return []
 
 def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0)):
     by_ref={c.ref.strip().upper():c for c in cad_records}; out={}
