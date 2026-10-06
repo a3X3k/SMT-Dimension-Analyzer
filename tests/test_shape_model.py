@@ -237,3 +237,19 @@ def test_excel_export_preserves_trusted_shape_dimensions_and_gates_gerber(tmp_pa
     assert data['Body Height (mm)']==1.0
     assert data['Paste Envelope Length (mm)']==6.0
     assert data['Manufacturer']=='Acme'
+
+
+def test_excel_processing_log_uses_selected_shape_provenance(tmp_path):
+    from openpyxl import load_workbook
+    from models import UniquePart
+    from dimensions.shape_model import ShapeModel
+    from export.excel_export import export_excel
+    part=UniquePart('ABC',['U1'],'U1')
+    shape=ShapeModel(mpn='ABC',ref='U1',body_length_mm=5.0,source='Mouser',confidence='HIGH')
+    out=tmp_path/'log.xlsx'
+    export_excel(out,[part],{}, {}, {'ABC':shape})
+    ws=load_workbook(out,data_only=True)['Processing Log']
+    data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
+    assert data['Source selected']=='Mouser'
+    assert data['Accepted']=='NO'
+    assert 'ODB++' in data['Source attempted']
