@@ -361,3 +361,29 @@ def test_excel_separates_unaccepted_gerber_body_evidence(tmp_path):
     assert data['Gerber Length Evidence (mm)']==5.0
     assert data['Gerber Width Evidence (mm)']==2.0
     assert data['Gerber Height Evidence (mm)']==1.2
+
+
+def test_exports_surface_per_field_body_provenance(tmp_path):
+    from openpyxl import load_workbook
+    from models import UniquePart
+    from dimensions.shape_model import ShapeModel
+    from export.excel_export import export_excel
+    from export.text_export import export_text
+    part=UniquePart('ABC',['U1'],'U1')
+    shape=ShapeModel(mpn='ABC',ref='U1',body_length_mm=5.0,body_width_mm=2.0,body_height_mm=1.0,
+        body_length_source='Mouser',body_width_source='ODB++',body_height_source='Gerber Silkscreen - Proposed',
+        source='Mouser + ODB++ + Gerber Silkscreen - Proposed')
+    txt=tmp_path/'sources.txt'
+    export_text(txt,[part],{}, {'ABC':shape})
+    lines=txt.read_text(encoding='utf-8').splitlines()
+    data=dict(zip(lines[0].split('\t'),lines[1].split('\t')))
+    assert data['BODY_L_SOURCE']=='Mouser'
+    assert data['BODY_W_SOURCE']=='ODB++'
+    assert data['BODY_H_SOURCE']=='Gerber Silkscreen - Proposed'
+    xlsx=tmp_path/'sources.xlsx'
+    export_excel(xlsx,[part],{}, {}, {'ABC':shape})
+    ws=load_workbook(xlsx,data_only=True)['Shape Dimensions']
+    row=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
+    assert row['Body Length Source']=='Mouser'
+    assert row['Body Width Source']=='ODB++'
+    assert row['Body Height Source']=='Gerber Silkscreen - Proposed'
