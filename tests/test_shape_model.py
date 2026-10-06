@@ -134,3 +134,24 @@ def test_exports_keep_unaccepted_paste_but_gate_body_dimensions(tmp_path):
     assert data['PASTE_ENVELOPE_L_MM']=='5.2'
     assert data['PASTE_PAD_L_MM']=='1.0'
     assert data['USER_ACCEPTED']=='NO'
+
+
+def test_exact_mpn_structured_metric_dimension_extraction_is_conservative():
+    from lookup.mpn_lookup import _exact_metric_dimensions
+    product={'Parameters':[
+        {'ParameterText':'Length - Overall','ValueText':'4.90 mm'},
+        {'ParameterText':'Width - Overall','ValueText':'3.90mm'},
+        {'ParameterText':'Height - Seated (Max)','ValueText':'1.75 mm'},
+        {'ParameterText':'Body Length','ValueText':'0.25 in'},
+    ]}
+    d=_exact_metric_dimensions(product)
+    assert d=={'body_length_mm':4.9,'body_width_mm':3.9,'body_height_mm':1.75}
+
+def test_exact_mpn_dimension_extraction_does_not_guess_units():
+    from lookup.mpn_lookup import _exact_metric_dimensions
+    product={'Parameters':[
+        {'ParameterText':'Body Length','ValueText':'0.25 in'},
+        {'ParameterText':'Body Width','ValueText':'250 mil'},
+        {'ParameterText':'Body Height','ValueText':'unknown'},
+    ]}
+    assert _exact_metric_dimensions(product)=={}
