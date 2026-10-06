@@ -332,6 +332,20 @@ def _consensus_cluster(candidates,tol=.15):
             return min(valid,key=key)
     return []
 
+def _plausibility_notes(result):
+    """Flag suspicious geometry without inventing package dimensions."""
+    notes=[]
+    l=getattr(result,"length_mm",None); w=getattr(result,"width_mm",None)
+    if l is None or w is None:return notes
+    if l<=0 or w<=0:notes.append("non-positive body dimension")
+    if min(l,w)<0.20:notes.append("body side below 0.20 mm")
+    if max(l,w)>100.0:notes.append("body side above 100 mm")
+    if min(l,w)>0 and max(l,w)/min(l,w)>25:notes.append("body aspect ratio above 25:1")
+    pl=getattr(result,"paste_length_mm",None); pw=getattr(result,"paste_width_mm",None)
+    if pl and pw and (pl>l*5 or pw>w*5):
+        notes.append("paste envelope is more than 5× body on an axis")
+    return notes
+
 def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0)):
     by_ref={c.ref.strip().upper():c for c in cad_records}; out={}
     for p in unique_parts:
@@ -364,6 +378,12 @@ def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_m
             elif len(candidates)>1:
                 best.confidence="LOW"
                 best.remarks += f" Same-MPN instances disagree; selected best geometry from {len(candidates)} candidates and kept LOW confidence."
+            flags=_plausibility_notes(best)
+            if flags:
+                best.confidence="LOW"
+                best.status="MANUAL REVIEW"
+                best.accepted=False
+                best.remarks += " Plausibility warning: "+"; ".join(flags)+"."
             out[p.mpn]=best
         else:
             out[p.mpn]=GerberDimensionResult(p.representative_ref,remarks="No CAD-backed instance produced a credible silkscreen body proposal; manual review required.")
