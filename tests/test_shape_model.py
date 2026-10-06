@@ -164,3 +164,21 @@ def test_review_lookup_uses_expanded_source_and_status_columns():
     assert 'self.table.setItem(r,9,QTableWidgetItem(data.source or "MPN lookup"))' in source
     assert 'self.table.setItem(r,10,QTableWidgetItem(data.status))' in source
     assert 'self.table.setItem(r,8,QTableWidgetItem(data.source or "MPN lookup"))' not in source
+
+
+def test_lookup_dimensions_are_not_marked_user_accepted_by_unrelated_gerber():
+    from types import SimpleNamespace
+    from models import UniquePart
+    from dimensions.shape_model import build_shape_model
+    from dimensions.gerber_dimension import GerberDimensionResult
+    part=UniquePart('ABC',['U1'],'U1')
+    lookup=SimpleNamespace(status='EXACT MPN MATCH',body_length_mm=5.0,body_width_mm=4.0,
+        body_height_mm=1.0,pin_count=None,pin_pitch_mm=None,lead_width_mm=None,lead_length_mm=None,
+        bga_rows=None,bga_columns=None,ball_pitch_mm=None,source='Mouser',datasheet_url='',source_url='',confidence='HIGH',
+        package_type='',manufacturer='')
+    gerber=GerberDimensionResult('U1',length_mm=6.0,width_mm=6.0,accepted=True,status='USER ACCEPTED')
+    shape=build_shape_model(part,dimension=gerber,lookup=lookup)
+    assert shape.body_length_mm==5.0
+    assert shape.body_width_mm==4.0
+    assert shape.user_accepted is False
+    assert shape.verification=='NOT REQUIRED'
