@@ -50,7 +50,19 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, sh
         selected=(getattr(s,"source","") if s else "") or getattr(r,"source","")
         accepted=bool(getattr(s,"user_accepted",False) or getattr(r,"accepted",False))
         remarks=(getattr(s,"remarks","") if s else "") or getattr(r,"remarks","")
-        log.append([p.mpn,p.representative_ref,"Silkscreen; Solder Paste; MPN lookup; ODB++",selected,"YES" if accepted else "NO",remarks,now])
+        # "Accepted" is a Gerber-review decision, not a quality flag for
+        # trusted lookup/ODB dimensions. Avoid reporting those as rejected.
+        if accepted:
+            review_state="YES"
+        elif s and any(src and "gerber" not in src.lower() for src in (
+            getattr(s,"body_length_source",""),getattr(s,"body_width_source",""),getattr(s,"body_height_source","")
+        )) and not any("gerber" in src.lower() for src in (
+            getattr(s,"body_length_source",""),getattr(s,"body_width_source",""),getattr(s,"body_height_source","")
+        )):
+            review_state="NOT REQUIRED"
+        else:
+            review_state="NO"
+        log.append([p.mpn,p.representative_ref,"Silkscreen; Solder Paste; MPN lookup; ODB++",selected,review_state,remarks,now])
     for sheet in wb.worksheets:
         for cell in sheet[1]: cell.font=Font(bold=True)
         sheet.freeze_panes="A2"; sheet.auto_filter.ref=sheet.dimensions
