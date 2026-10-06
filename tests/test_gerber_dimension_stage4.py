@@ -302,3 +302,20 @@ def test_project_confidence_requires_repeatable_closed_geometry(tmp_path):
     assert r.confidence=='HIGH'
     assert r.accepted is False
     assert 'at least 3 same-MPN' in r.remarks
+
+
+def test_consensus_cluster_scales_to_large_same_mpn_population():
+    from dimensions.gerber_dimension import GerberDimensionResult,_consensus_cluster
+    candidates=[
+        GerberDimensionResult(f'R{i}',length_mm=4.0+(i%5)*.01,width_mm=2.0+(i%3)*.01)
+        for i in range(500)
+    ]
+    # Add incompatible outliers; they must not disturb the dominant cluster.
+    candidates += [
+        GerberDimensionResult('OUT1',length_mm=8.0,width_mm=2.0),
+        GerberDimensionResult('OUT2',length_mm=4.0,width_mm=5.0),
+    ]
+    cluster=_consensus_cluster(candidates,tol=.15)
+    assert len(cluster)==500
+    assert max(x.length_mm for x in cluster)-min(x.length_mm for x in cluster)<=.15
+    assert max(x.width_mm for x in cluster)-min(x.width_mm for x in cluster)<=.15
