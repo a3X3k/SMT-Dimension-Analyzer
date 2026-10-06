@@ -16,15 +16,17 @@ def export_text(path, unique_parts, dimension_results=None, shape_models=None):
             # dimensions already present in the shape model.
             body_l=v(s,"body_length_mm"); body_w=v(s,"body_width_mm"); body_h=v(s,"body_height_mm")
             if not accepted:
-                if r:
+                provenance_available=any(getattr(s,n,"") for n in ("body_length_source","body_width_source","body_height_source"))
+                if provenance_available:
+                    if "gerber" in getattr(s,"body_length_source","").lower(): body_l=""
+                    if "gerber" in getattr(s,"body_width_source","").lower(): body_w=""
+                    if "gerber" in getattr(s,"body_height_source","").lower(): body_h=""
+                elif r:
+                    # Backward compatibility for older ShapeModel instances.
                     if getattr(s,"body_length_mm",None)==getattr(r,"length_mm",None): body_l=""
                     if getattr(s,"body_width_mm",None)==getattr(r,"width_mm",None): body_w=""
                     if getattr(s,"body_height_mm",None)==getattr(r,"height_mm",None): body_h=""
                 elif "gerber" in source.lower():
-                    # Some callers export a pre-built ShapeModel without the
-                    # raw dimension result. In that case provenance is the only
-                    # available evidence, so unaccepted Gerber-derived body
-                    # values must remain gated.
                     body_l=body_w=body_h=""
             row=[
                 p.mpn,p.representative_ref,v(s,"manufacturer"),v(s,"package_type"),v(s,"package_family"),
