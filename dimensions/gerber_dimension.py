@@ -371,7 +371,11 @@ def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_m
         if candidates:
             cluster=_consensus_cluster(candidates)
             pool=cluster if len(cluster)>=2 else candidates
-            rank=lambda r:(0 if r.source=="Gerber Silkscreen - Proposed" else 1, -len(r.primitive_ids))
+            # Stable tie-breaks are required because BOM reference order must
+            # not change which instance supplies provenance/paste evidence.
+            rank=lambda r:(0 if r.source=="Gerber Silkscreen - Proposed" else 1,
+                           -len(r.primitive_ids),
+                           round(r.length_mm,6),round(r.width_mm,6),r.ref)
             best=sorted(pool,key=rank)[0]
             if len(cluster)>=2:
                 ls=sorted(r.length_mm for r in cluster); ws=sorted(r.width_mm for r in cluster)
