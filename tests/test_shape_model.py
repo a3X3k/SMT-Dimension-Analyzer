@@ -155,3 +155,11 @@ def test_exact_mpn_dimension_extraction_does_not_guess_units():
         {'ParameterText':'Body Height','ValueText':'unknown'},
     ]}
     assert _exact_metric_dimensions(product)=={}
+
+
+def test_review_lookup_uses_expanded_source_and_status_columns():
+    from pathlib import Path
+    source=Path('ui/main_window.py').read_text(encoding='utf-8')
+    assert 'self.table.setItem(r,9,QTableWidgetItem(data.source or "MPN lookup"))' in source
+    assert 'self.table.setItem(r,10,QTableWidgetItem(data.status))' in source
+    assert 'self.table.setItem(r,8,QTableWidgetItem(data.source or "MPN lookup"))' not in source
