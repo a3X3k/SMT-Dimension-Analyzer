@@ -251,7 +251,8 @@ def test_excel_processing_log_uses_selected_shape_provenance(tmp_path):
     ws=load_workbook(out,data_only=True)['Processing Log']
     data=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
     assert data['Source selected']=='Mouser'
-    assert data['Accepted']=='NO'
+    assert data['Review Required']=='NO'
+    assert data['Review Accepted']=='NOT REQUIRED'
     assert 'ODB++' in data['Source attempted']
 
 
