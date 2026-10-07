@@ -87,12 +87,12 @@ def _parse_component_line(line, side, source_file):
             return OdbComponent(ref=toks[1],x=float(toks[2]),y=float(toks[3]),rotation=_num(toks[4]) if len(toks)>4 else None,side=side,package=toks[5] if len(toks)>5 else '',source_file=source_file,raw={'line':line})
     return None
 
-def _parse_components_file(path: Path, side: str, warnings):
+def _parse_components_file(path: Path, side: str, warnings, default_units=None):
     out=[]
     try: text=path.read_text(errors='replace')
     except Exception as e: warnings.append(f"Cannot read {path}: {e}"); return out
     explicit=re.search(r'(?im)^\\s*U\\s+(MM|INCH|IN|MIL)\\s*$',text)
-    component_units=(explicit.group(1).upper() if explicit else 'INCH')
+    component_units=(explicit.group(1).upper() if explicit else (default_units or 'INCH'))
     if component_units=='IN': component_units='INCH'
     scale=_scale_to_mm(component_units) or 1.0
     for line in text.splitlines():
