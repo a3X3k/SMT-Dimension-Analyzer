@@ -147,11 +147,11 @@ def parse_odb(path) -> OdbDocument:
                             lname=layer.name.lower()
                             side='TOP' if ('top' in lname or lname.endswith('_+_top')) else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
                             comp=next((p for p in layer.iterdir() if p.is_file() and p.name.lower() in {'components','component','comps'}),layer/'components')
-                            if comp.is_file() and ('comp' in lname or side): doc.components.extend(_parse_components_file(comp,side,doc.warnings))
+                            if comp.is_file() and ('comp' in lname or side): doc.components.extend(_parse_components_file(comp,side,doc.warnings,doc.units if doc.units!='UNKNOWN' else None))
                     if not doc.components:
                         for comp in (p for p in step.rglob('*') if p.is_file() and p.name.lower() in {'components','component','comps'}):
                                 lname=str(comp.parent).lower(); side='TOP' if 'top' in lname else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
-                                doc.components.extend(_parse_components_file(comp,side,doc.warnings))
+                                doc.components.extend(_parse_components_file(comp,side,doc.warnings,doc.units if doc.units!='UNKNOWN' else None))
         # Some valid ODB++ jobs (notably Zuken CR-8000) place steps directly
         # under the job root instead of jobs/<job>/steps.
         if not doc.components:
@@ -170,7 +170,7 @@ def parse_odb(path) -> OdbDocument:
                         if 'comp' not in lname: continue
                         side='TOP' if 'top' in lname else ('BOTTOM' if ('bot' in lname or 'bottom' in lname) else '')
                         comp=next((p for p in layer.iterdir() if p.is_file() and p.name.lower()=='components'),None)
-                        if comp: doc.components.extend(_parse_components_file(comp,side,doc.warnings))
+                        if comp: doc.components.extend(_parse_components_file(comp,side,doc.warnings,doc.units if doc.units!='UNKNOWN' else None))
         # Component files are converted independently because their native
         # units may differ from feature-file units.
         scale=_scale_to_mm(doc.units)
