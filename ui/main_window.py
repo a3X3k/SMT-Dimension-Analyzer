@@ -160,18 +160,20 @@ class MainWindow(QMainWindow):
             missing=", ".join(x for x in ("Part Number / MPN" if not det.get("mpn") else "", "Reference" if not det.get("ref") else "") if x)
             QMessageBox.warning(self,"BOM headings not recognized",f"Required BOM heading(s) not recognized: {missing}.\n\nThe software maps BOM columns automatically from their headings.")
             return
-        self.state.bom_path=Path(fn); self.state.bom_records=parse_bom(fn)
-        self.state.unique_parts=group_unique_parts(self.state.bom_records); select_cad_aware_representatives(self.state.unique_parts,self.state.cad_records)
-        cad_by_ref={c.ref.strip().upper():c for c in self.state.cad_records}
-        matched_refs=set()
-        for record in self.state.bom_records:
-            ref=record.ref.strip().upper()
-            if ref in cad_by_ref:
-                cad_by_ref[ref].mpn=record.mpn
-                matched_refs.add(ref)
-        unmatched_bom={r.ref.strip().upper() for r in self.state.bom_records}-set(cad_by_ref)
-        unmatched_cad=set(cad_by_ref)-matched_refs
-        self.bom_info.setText(f"BOM: {Path(fn).name} — {len(self.state.unique_parts)} unique PNs; {len(matched_refs)} references matched to CAD; {len(unmatched_bom)} BOM-only; {len(unmatched_cad)} CAD-only")
+        from matching.bom_cad_matcher import match_bom_to_cad
+        try:
+            records=parse_bom(fn)
+            stats=match_bom_to_cad(self.state.cad_records,records)
+        except ValueError as exc:
+            QMessageBox.warning(self,"BOM reference matching",str(exc))
+            return
+        self.state.bom_path=Path(fn);self.state.bom_records=records
+        self.state.unique_parts=group_unique_parts(records)
+        select_cad_aware_representatives(self.state.unique_parts,self.state.cad_records)
+        self.bom_info.setText(
+            f"BOM: {Path(fn).name} — {len(self.state.unique_parts)} unique PNs; "
+            f"{len(stats['matched'])} references matched to CAD; "
+            f"{len(stats['bom_only'])} BOM-only; {len(stats['cad_only'])} CAD-only")
         self.state.dimension_results={}; self.state.shape_models={}; self._populate(); self._update_status()
 
     def import_gerber(self):
