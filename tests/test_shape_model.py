@@ -235,7 +235,7 @@ def test_excel_processing_log_uses_selected_shape_provenance(tmp_path):
     assert data['Source selected']=='Mouser'
     assert data['Review Required']=='NO'
     assert data['Review Accepted']=='NOT REQUIRED'
-    assert 'ODB++' in data['Source attempted']
+    assert 'MPN lookup' in data['Source attempted']
 
 
 def test_excel_location_verification_is_not_applicable_without_gerber_match(tmp_path):
@@ -276,8 +276,8 @@ def test_per_field_provenance_preserves_trusted_value_equal_to_gerber(tmp_path):
     from export.text_export import export_text
     part=UniquePart('ABC',['U1'],'U1')
     shape=ShapeModel(mpn='ABC',ref='U1',body_length_mm=5.0,body_width_mm=2.0,body_height_mm=1.0,
-        body_length_source='Mouser',body_width_source='Gerber Silkscreen - Proposed',body_height_source='ODB++',
-        source='Mouser + ODB++ + Gerber Silkscreen - Proposed',confidence='HIGH')
+        body_length_source='Mouser',body_width_source='Gerber Silkscreen - Proposed',body_height_source='Mouser',
+        source='Mouser + Mouser + Gerber Silkscreen - Proposed',confidence='HIGH')
     gerber=GerberDimensionResult('U1',length_mm=5.0,width_mm=2.0,accepted=False)
     txt=tmp_path/'provenance.txt'
     export_text(txt,[part],{'ABC':gerber},{'ABC':shape})
@@ -336,21 +336,21 @@ def test_exports_surface_per_field_body_provenance(tmp_path):
     from export.text_export import export_text
     part=UniquePart('ABC',['U1'],'U1')
     shape=ShapeModel(mpn='ABC',ref='U1',body_length_mm=5.0,body_width_mm=2.0,body_height_mm=1.0,
-        body_length_source='Mouser',body_width_source='ODB++',body_height_source='Gerber Silkscreen - Proposed',
-        source='Mouser + ODB++ + Gerber Silkscreen - Proposed')
+        body_length_source='Mouser',body_width_source='Mouser',body_height_source='Gerber Silkscreen - Proposed',
+        source='Mouser + Mouser + Gerber Silkscreen - Proposed')
     txt=tmp_path/'sources.txt'
     export_text(txt,[part],{}, {'ABC':shape})
     lines=txt.read_text(encoding='utf-8').splitlines()
     data=dict(zip(lines[0].split('\t'),lines[1].split('\t')))
     assert data['BODY_L_SOURCE']=='Mouser'
-    assert data['BODY_W_SOURCE']=='ODB++'
+    assert data['BODY_W_SOURCE']=='Mouser'
     assert data['BODY_H_SOURCE']=='Gerber Silkscreen - Proposed'
     xlsx=tmp_path/'sources.xlsx'
     export_excel(xlsx,[part],{}, {}, {'ABC':shape})
     ws=load_workbook(xlsx,data_only=True)['Shape Dimensions']
     row=dict(zip([x.value for x in ws[1]],[x.value for x in ws[2]]))
     assert row['Body Length Source']=='Mouser'
-    assert row['Body Width Source']=='ODB++'
+    assert row['Body Width Source']=='Mouser'
     assert row['Body Height Source']=='Gerber Silkscreen - Proposed'
 
 
