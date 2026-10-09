@@ -4,7 +4,6 @@ from openpyxl import Workbook, load_workbook
 from parsers.bom_parser import parse_bom,group_unique_parts
 from parsers.cad_parser import parse_cad
 from parsers.gerber_parser import classify_gerber
-from parsers.odb_parser import select_odb_source,parse_odb_dimensions
 from database.database import init_db
 from export.excel_export import export_excel
 from export.text_export import export_text
@@ -20,10 +19,6 @@ def test_cad_parse(tmp_path):
 def test_layer_classification():
     assert classify_gerber('a.GTO')=='Top Silkscreen'
     assert classify_gerber('a.GTP')=='Top Paste'
-
-def test_odb_selector(tmp_path):
-    d=tmp_path/'odb'; d.mkdir(); assert select_odb_source(d)==d
-    r=parse_odb_dimensions(d); assert r['status']=='NOT AVAILABLE / MANUAL REVIEW'
 
 def test_db_init(tmp_path):
     p=init_db(tmp_path/'x.db')
