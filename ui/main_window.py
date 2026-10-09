@@ -162,8 +162,16 @@ class MainWindow(QMainWindow):
             return
         self.state.bom_path=Path(fn); self.state.bom_records=parse_bom(fn)
         self.state.unique_parts=group_unique_parts(self.state.bom_records); select_cad_aware_representatives(self.state.unique_parts,self.state.cad_records)
-        cadrefs={c.ref.strip().upper() for c in self.state.cad_records}; matched=sum(any(r.strip().upper() in cadrefs for r in p.refs) for p in self.state.unique_parts)
-        self.bom_info.setText(f"BOM: {Path(fn).name} — {len(self.state.unique_parts)} unique PNs; {matched} matched to CAD")
+        cad_by_ref={c.ref.strip().upper():c for c in self.state.cad_records}
+        matched_refs=set()
+        for record in self.state.bom_records:
+            ref=record.ref.strip().upper()
+            if ref in cad_by_ref:
+                cad_by_ref[ref].mpn=record.mpn
+                matched_refs.add(ref)
+        unmatched_bom={r.ref.strip().upper() for r in self.state.bom_records}-set(cad_by_ref)
+        unmatched_cad=set(cad_by_ref)-matched_refs
+        self.bom_info.setText(f"BOM: {Path(fn).name} — {len(self.state.unique_parts)} unique PNs; {len(matched_refs)} references matched to CAD; {len(unmatched_bom)} BOM-only; {len(unmatched_cad)} CAD-only")
         self.state.dimension_results={}; self.state.shape_models={}; self._populate(); self._update_status()
 
     def import_gerber(self):
