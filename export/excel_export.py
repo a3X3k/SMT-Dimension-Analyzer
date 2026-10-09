@@ -41,7 +41,7 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, sh
         # Gerber body geometry currently has no independent absolute rotation
         # measurement. Do not imply that the ±1° requirement was verified.
         rotation_check="NOT AVAILABLE" if dx is not None else "NOT APPLICABLE"
-        status="POSITION PASS / ROTATION NOT VERIFIED" if position_ok else ("WARNING" if dx is not None else "NOT APPLICABLE")
+        status="POSITION PASS / ROTATION NOT VERIFIED" if position_ok else ("POSITION WARNING / ROTATION NOT VERIFIED" if dx is not None else "NOT APPLICABLE")
         v.append([p.mpn,p.representative_ref,cx,cy,getattr(c,"rotation",None),gx,gy,dx,dy,rotation_check,status])
     log=wb.create_sheet("Processing Log"); log.append(["PN","Ref","Source attempted","Source selected","Review Required","Review Accepted","Warning / Remarks","Date/time"])
     now=datetime.now().isoformat(timespec="seconds")
