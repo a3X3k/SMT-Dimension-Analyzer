@@ -2,14 +2,12 @@ from pathlib import Path
 from PySide6.QtCore import QUrl,Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import *
-from models import ProjectState,CadRecord
+from models import ProjectState
 from parsers.cad_parser import inspect_cad,parse_cad
-from parsers.odb_parser import parse_odb
 from parsers.bom_parser import inspect_bom,parse_bom,group_unique_parts
 from parsers.gerber_parser import parse_gerber_files
 from matching.representative_selector import select_cad_aware_representatives
 from dimensions.gerber_dimension import derive_project_dimensions
-from dimensions.odb_dimension import derive_odb_dimensions, merge_priority
 from dimensions.shape_model import build_project_shapes
 from export.excel_export import export_excel
 from export.text_export import export_text
@@ -28,7 +26,7 @@ class MainWindow(QMainWindow):
     def _build(self):
         root=QWidget(); self.setCentralWidget(root); outer=QVBoxLayout(root)
         bar=QHBoxLayout(); outer.addLayout(bar)
-        self.cad_btn=QPushButton("1. Import CAD / ODB++"); self.cad_btn.clicked.connect(self.import_cad); bar.addWidget(self.cad_btn)
+        self.cad_btn=QPushButton("1. Import CAD"); self.cad_btn.clicked.connect(self.import_cad); bar.addWidget(self.cad_btn)
         self.bom_btn=QPushButton("2. Import BOM"); self.bom_btn.clicked.connect(self.import_bom); bar.addWidget(self.bom_btn)
         self.gerber_btn=QPushButton("3. Import Gerber"); self.gerber_btn.clicked.connect(self.import_gerber); bar.addWidget(self.gerber_btn)
         self.fit=QPushButton("Fit Board"); self.fit.clicked.connect(lambda:self.workspace.fit_board()); bar.addWidget(self.fit)
@@ -129,48 +127,7 @@ class MainWindow(QMainWindow):
         elif not has_gerber: self.next_step.setText("CAD ✓   BOM ✓   Next: 3. Import Gerber")
         else: self.next_step.setText("CAD ✓   BOM ✓   Gerber ✓   Next: 4. Analyze Dimensions")
 
-    def _load_odb(self, path):
-        doc=parse_odb(path)
-        records=[
-            CadRecord(
-                ref=x.ref, mpn=x.mpn, x=x.x, y=x.y, rotation=x.rotation,
-                layer=x.side,
-                raw={"source":"ODB++","package":x.package,"length_mm":x.length_mm,
-                     "width_mm":x.width_mm,"height_mm":x.height_mm,
-                     "source_file":x.source_file, **(x.raw or {})}
-            )
-            for x in doc.components if x.ref
-        ]
-        if not records:
-            details="\n".join(doc.warnings) if doc.warnings else "No component placement records were found."
-            QMessageBox.warning(self,"ODB++ import",f"ODB++ was opened, but no supported component placements were found.\n\n{details}")
-            return False
-        self.state.odb_path=Path(path); self.state.cad_path=None
-        self.state.cad_records=records; self.state.dimension_results={}; self.state.shape_models={}
-        self.cad_info.setText(f"CAD: {Path(path).name} [ODB++] — {len(records)} placements; {len(doc.jobs)} job(s), {len(doc.steps)} step(s) — working units: mm")
-        self.workspace.set_data(cad=records); self.workspace.fit_board(); self._update_status()
-        self.tabs.setCurrentIndex(0)
-        return True
-
     def import_cad(self):
-        choice=QMessageBox(self)
-        choice.setWindowTitle("1. Import CAD / ODB++")
-        choice.setText("Choose the CAD data source.")
-        file_btn=choice.addButton("CAD File (XLSX / XLS / CSV / TXT)",QMessageBox.ActionRole)
-        odb_btn=choice.addButton("ODB++ Archive",QMessageBox.ActionRole)
-        folder_btn=choice.addButton("ODB++ Folder",QMessageBox.ActionRole)
-        choice.addButton(QMessageBox.Cancel)
-        choice.exec()
-        clicked=choice.clickedButton()
-        if clicked==odb_btn:
-            fn,_=QFileDialog.getOpenFileName(self,"Import ODB++ Archive","","ODB++ Archives (*.tgz *.tar.gz *.tar *.zip);;All Files (*)")
-            if fn:self._load_odb(fn)
-            return
-        if clicked==folder_btn:
-            folder=QFileDialog.getExistingDirectory(self,"Import Extracted ODB++ Folder")
-            if folder:self._load_odb(folder)
-            return
-        if clicked!=file_btn:return
         fn,_=QFileDialog.getOpenFileName(self,"Import CAD","","CAD (*.xlsx *.xls *.csv *.txt)")
         if not fn:return
         df,det=inspect_cad(fn)
@@ -179,7 +136,7 @@ class MainWindow(QMainWindow):
             missing=", ".join(k.upper() for k in required if not det.get(k))
             QMessageBox.warning(self,"CAD headings not recognized",f"Required CAD heading(s) not recognized: {missing}.\n\nExpected headings include Reference/RefDes, X location, Y location, and Angle/Rotation.")
             return
-        self.state.cad_path=Path(fn); self.state.odb_path=None
+        self.state.cad_path=Path(fn)
         self.state.cad_records=parse_cad(fn); self.state.dimension_results={}; self.state.shape_models={}
         self.cad_info.setText(f"CAD: {Path(fn).name} — {len(self.state.cad_records)} placements — units: mm")
         self.workspace.set_data(cad=self.state.cad_records); self.workspace.fit_board(); self._update_status()
@@ -292,11 +249,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self,"Missing input","Import CAD, BOM and Gerber before analysis."); return
         analysis_docs=[d for d in self.state.gerber_documents if d.layer!="Other / Ignore"]
         gerber_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,analysis_docs,alignment=(self.dx,self.dy,self.da))
-        if self.state.odb_path:
-            odb_results=derive_odb_dimensions(self.state.unique_parts,parse_odb(self.state.odb_path))
-            self.state.dimension_results=merge_priority(odb_results,gerber_results)
-        else:
-            self.state.dimension_results=gerber_results
+        self.state.dimension_results=gerber_results
         self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         for r,p in enumerate(self.state.unique_parts):
             x=self.state.dimension_results.get(p.mpn)
