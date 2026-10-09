@@ -35,7 +35,7 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, sh
         c=cad_by_ref.get(p.representative_ref); r=dimension_results.get(p.mpn); gx=getattr(r,"gerber_x",None); gy=getattr(r,"gerber_y",None); cx=getattr(c,"x",None); cy=getattr(c,"y",None)
         dx=round(abs(cx-gx),4) if cx is not None and gx is not None else None; dy=round(abs(cy-gy),4) if cy is not None and gy is not None else None
         # Location verification is meaningful only for an actual Gerber match.
-        # Trusted lookup/ODB dimensions without Gerber coordinates are not a
+        # Trusted lookup dimensions without Gerber coordinates are not a
         # failed location check.
         position_ok=dx is not None and dy is not None and dx<=.10 and dy<=.10
         # Gerber body geometry currently has no independent absolute rotation
@@ -51,13 +51,13 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, sh
         accepted=bool(getattr(s,"user_accepted",False) or getattr(r,"accepted",False))
         remarks=(getattr(s,"remarks","") if s else "") or getattr(r,"remarks","")
         # "Accepted" is a Gerber-review decision, not a quality flag for
-        # trusted lookup/ODB dimensions. Avoid reporting those as rejected.
+        # trusted lookup dimensions. Avoid reporting those as rejected.
         gerber_field=bool(s and any("gerber" in src.lower() for src in (
             getattr(s,"body_length_source",""),getattr(s,"body_width_source",""),getattr(s,"body_height_source","")
         )))
         # Legacy/pre-provenance shapes can still be identified by their
         # aggregate source. Review is required only when Gerber supplies body
-        # geometry; trusted lookup/ODB data does not need user acceptance.
+        # geometry; trusted lookup data does not need user acceptance.
         review_required=gerber_field or bool(s and not any((
             getattr(s,"body_length_source",""),getattr(s,"body_width_source",""),getattr(s,"body_height_source","")
         )) and "gerber" in selected.lower()) or bool(not s and r and any(
