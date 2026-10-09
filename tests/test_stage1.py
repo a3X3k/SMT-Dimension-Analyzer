@@ -46,3 +46,29 @@ def test_cad_excel_finds_header_after_report_metadata(tmp_path):
     ws.append(['U1','12.5 mm','7.25 mm','90 deg','Top']); wb.save(p)
     r=parse_cad(p)[0]
     assert r.ref=='U1' and r.x==12.5 and r.y==7.25 and r.rotation==90 and r.layer=='Top'
+
+
+def test_cad_mils_conversion_and_optional_part_number(tmp_path):
+    from parsers.cad_parser import parse_cad
+    path=tmp_path/"placement.txt"
+    path.write_text("refdes\\tsymbol_x\\tsymbol_y\\trotation\\tmirror\\nR1\\t1000\\t-500\\t90\\tTop\\n")
+    records=parse_cad(path,units="mils")
+    assert len(records)==1
+    assert records[0].ref=="R1"
+    assert abs(records[0].x-25.4)<1e-9
+    assert abs(records[0].y+12.7)<1e-9
+    assert records[0].rotation==90
+    assert records[0].mpn==""
+    assert records[0].layer=="Top"
+
+
+def test_cad_excel_header_aliases_and_mirror_boolean(tmp_path):
+    from parsers.cad_parser import parse_cad
+    import pandas as pd
+    path=tmp_path/"placement.xlsx"
+    pd.DataFrame([{"REFDES":"U1","SYM_X":12.5,"SYM_Y":4.2,"SYM_ROTATE":270,"SYM_MIRROR":"NO"}]).to_excel(path,index=False)
+    records=parse_cad(path,units="mm")
+    assert len(records)==1
+    assert records[0].x==12.5 and records[0].y==4.2
+    assert records[0].rotation==270
+    assert records[0].layer==""
