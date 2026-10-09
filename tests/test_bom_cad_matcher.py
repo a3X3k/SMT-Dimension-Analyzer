@@ -30,3 +30,8 @@ def test_conflicting_bom_reference_does_not_change_cad():
 def test_duplicate_cad_reference_rejected():
     with pytest.raises(ValueError,match="Duplicate CAD reference"):
         match_bom_to_cad([CadRecord(ref="R1"),CadRecord(ref="r1")],[])
+
+
+def test_spreadsheet_error_reference_is_not_matched():
+    with pytest.raises(ValueError,match="Invalid CAD reference"):
+        match_bom_to_cad([CadRecord(ref="#NAME?")],[])
