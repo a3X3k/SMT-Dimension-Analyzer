@@ -1,7 +1,7 @@
 import math
 from PySide6.QtCore import Qt,QPointF,Signal
 from PySide6.QtGui import QColor,QPen,QBrush,QPainter,QPainterPath
-from PySide6.QtWidgets import QGraphicsView,QGraphicsScene,QGraphicsSimpleTextItem,QGraphicsRectItem
+from PySide6.QtWidgets import QGraphicsView,QGraphicsScene,QGraphicsSimpleTextItem,QGraphicsRectItem,QGraphicsItem
 
 class PCBWorkspace(QGraphicsView):
     componentClicked=Signal(str)
@@ -105,7 +105,7 @@ class PCBWorkspace(QGraphicsView):
             v=self.scene.addLine(c.x,-c.y-.35,c.x,-c.y+.35,pen); v.setData(0,c.ref)
             if self.show_refs:
                 t=QGraphicsSimpleTextItem(c.ref); t.setBrush(QBrush(QColor("#D8D8D8")))
-                t.setPos(c.x+.75,-c.y-.65); t.setFlag(t.ItemIgnoresTransformations); t.setData(0,c.ref); self.scene.addItem(t)
+                t.setPos(c.x+.75,-c.y-.65); t.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations); t.setData(0,c.ref); self.scene.addItem(t)
 
         if self.review_bbox:
             b=self.review_bbox; pen=QPen(QColor("#66FF33")); pen.setCosmetic(True); pen.setWidthF(2.5)
@@ -116,7 +116,7 @@ class PCBWorkspace(QGraphicsView):
             self.scene.addLine(a.x(),a.y(),b.x(),b.y(),pen)
             dx=b.x()-a.x(); dy=-(b.y()-a.y()); dist=math.hypot(dx,dy)
             t=QGraphicsSimpleTextItem(f"{dist:.4f} mm"); t.setBrush(QBrush(QColor("#66FF33")))
-            t.setPos((a.x()+b.x())/2,(a.y()+b.y())/2); t.setFlag(t.ItemIgnoresTransformations); self.scene.addItem(t)
+            t.setPos((a.x()+b.x())/2,(a.y()+b.y())/2); t.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations); self.scene.addItem(t)
 
         if self.scene.items(): self.scene.setSceneRect(self.scene.itemsBoundingRect())
 
