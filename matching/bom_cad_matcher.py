@@ -5,6 +5,8 @@ def match_bom_to_cad(cad_records, bom_records):
     cad_by_ref = {}
     for cad in cad_records:
         key = cad.ref.strip().upper()
+        if not key or key in {"#NAME?", "#REF!", "#VALUE!", "#N/A"}:
+            raise ValueError(f"Invalid CAD reference {key!r}; correct the source CAD file before BOM matching")
         if key in cad_by_ref:
             raise ValueError(f"Duplicate CAD reference: {key}")
         cad_by_ref[key] = cad
