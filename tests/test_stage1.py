@@ -72,3 +72,42 @@ def test_cad_excel_header_aliases_and_mirror_boolean(tmp_path):
     assert records[0].x==12.5 and records[0].y==4.2
     assert records[0].rotation==270
     assert records[0].layer==""
+
+
+def test_cad_sample_txt_format_multiple_sides_and_rotations(tmp_path):
+    from parsers.cad_parser import inspect_cad, parse_cad
+    p=tmp_path/"CAD.txt"
+    p.write_text("refdes\tsymbol_x\tsymbol_y\trotation\tmirror\n"
+                 "L37\t-3.99\t367.56\t0\tTop\n"
+                 "C14\t5802.11\t2394.06\t0\tBottom\n"
+                 "C19\t4668.16\t2513.29\t225\tBottom\n")
+    df, columns=inspect_cad(p)
+    assert all(columns[k] for k in ("ref","x","y","rotation","layer"))
+    records=parse_cad(p, units="mils")
+    assert len(records)==3
+    assert records[0].ref=="L37"
+    assert abs(records[0].x-(-3.99*0.0254))<1e-10
+    assert abs(records[1].y-(2394.06*0.0254))<1e-10
+    assert records[1].layer=="Bottom"
+    assert records[2].rotation==225
+    assert all(r.mpn=="" for r in records)
+
+
+def test_cad_sample_excel_format_without_mpn(tmp_path):
+    from parsers.cad_parser import inspect_cad, parse_cad
+    import pandas as pd
+    p=tmp_path/"PCB XY PLACEMENT.xlsx"
+    pd.DataFrame([
+        {"REFDES":"BUSBAR_NEG1","SYM_X":276.5841,"SYM_Y":244.477,
+         "SYM_ROTATE":180,"SYM_MIRROR":"NO"},
+        {"REFDES":"F100","SYM_X":4.2139,"SYM_Y":249.682,
+         "SYM_ROTATE":180,"SYM_MIRROR":"NO"}
+    ]).to_excel(p,index=False)
+    df,columns=inspect_cad(p)
+    assert all(columns[k] for k in ("ref","x","y","rotation","layer"))
+    records=parse_cad(p,units="mm")
+    assert len(records)==2
+    assert records[0].x==276.5841
+    assert records[0].y==244.477
+    assert records[0].layer==""
+    assert all(r.mpn=="" for r in records)
