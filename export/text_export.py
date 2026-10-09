@@ -10,7 +10,7 @@ def export_text(path, unique_parts, dimension_results=None, shape_models=None):
                 return "" if x is None else str(x).replace("\t"," ").replace("\n"," ")
             accepted=bool(getattr(s,"user_accepted",False) or getattr(r,"accepted",False))
             source=str(getattr(s,"source","") or "") if s else ""
-            # A mixed source string can contain trusted lookup/ODB dimensions
+            # A mixed source string can contain trusted lookup dimensions
             # plus unaccepted Gerber fill-ins. Gate only fields whose value is
             # identical to the unaccepted Gerber proposal; preserve trusted
             # dimensions already present in the shape model.
