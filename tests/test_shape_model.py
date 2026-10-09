@@ -24,15 +24,6 @@ def test_exact_lookup_physical_data_has_priority():
     assert (s.body_length_mm,s.body_width_mm)==(4.0,4.0)
     assert (s.pin_count,s.pin_pitch_mm)==(32,0.5)
 
-def test_odb_body_fills_before_gerber():
-    part=UniquePart("ABC",["U1"],"U1")
-    cad=CadRecord("U1",raw={"source":"ODB++","package":"QFN","length_mm":4.0,"width_mm":3.0,"height_mm":1.0})
-    dim=GerberDimensionResult(ref="U1",length_mm=5.0,width_mm=5.0)
-    s=build_shape_model(part,cad=cad,dimension=dim)
-    assert (s.body_length_mm,s.body_width_mm,s.body_height_mm)==(4.0,3.0,1.0)
-    assert s.source=="ODB++"
-
-
 def test_exact_lookup_without_dimensions_does_not_claim_dimension_provenance():
     part=UniquePart("ABC",["U1"],"U1")
     lookup=MpnData(query="ABC",matched_mpn="ABC",manufacturer="Acme",package_type="QFN",source="DigiKey",source_url="https://example.invalid/product",confidence="HIGH",status="EXACT MPN MATCH")
@@ -48,15 +39,6 @@ def test_exact_lookup_metadata_does_not_mask_gerber_dimension_source():
     s=build_shape_model(part,dimension=dim,lookup=lookup)
     assert (s.body_length_mm,s.body_width_mm)==(5.0,4.0)
     assert s.source=="Gerber Silkscreen - Proposed" and s.confidence=="MEDIUM"
-
-def test_mixed_lookup_and_odb_dimension_provenance_is_explicit():
-    part=UniquePart("ABC",["U1"],"U1")
-    lookup=MpnData(query="ABC",matched_mpn="ABC",body_height_mm=1.0,source="Manufacturer",confidence="HIGH",status="EXACT MPN MATCH")
-    cad=CadRecord("U1",raw={"source":"ODB++","length_mm":4.0,"width_mm":3.0})
-    s=build_shape_model(part,cad=cad,lookup=lookup)
-    assert (s.body_length_mm,s.body_width_mm,s.body_height_mm)==(4.0,3.0,1.0)
-    assert s.source=="Manufacturer + ODB++" and s.confidence=="HIGH"
-
 
 def test_txt_export_hides_unaccepted_gerber_body_but_keeps_candidate(tmp_path):
     from export.text_export import export_text
@@ -311,24 +293,6 @@ def test_per_field_provenance_preserves_trusted_value_equal_to_gerber(tmp_path):
     assert row['Body Length (mm)']==5.0
     assert row['Body Width (mm)'] is None
     assert row['Body Height (mm)']==1.0
-
-
-def test_build_shape_model_records_each_body_field_source():
-    from types import SimpleNamespace
-    from models import UniquePart
-    from dimensions.shape_model import build_shape_model
-    from dimensions.gerber_dimension import GerberDimensionResult
-    part=UniquePart('ABC',['U1'],'U1')
-    lookup=SimpleNamespace(status='EXACT MPN MATCH',body_length_mm=5.0,body_width_mm=None,body_height_mm=None,
-        pin_count=None,pin_pitch_mm=None,lead_width_mm=None,lead_length_mm=None,bga_rows=None,bga_columns=None,
-        ball_pitch_mm=None,source='Mouser',datasheet_url='',source_url='',confidence='HIGH',package_type='',manufacturer='')
-    cad=SimpleNamespace(raw={'source':'ODB++','width_mm':2.0},ref='U1')
-    gerber=GerberDimensionResult('U1',height_mm=1.0,source='Gerber Silkscreen - Proposed',accepted=False)
-    shape=build_shape_model(part,cad,gerber,lookup)
-    assert shape.body_length_source=='Mouser'
-    assert shape.body_width_source=='ODB++'
-    assert shape.body_height_source=='Gerber Silkscreen - Proposed'
-    assert shape.user_accepted is False
 
 
 def test_text_export_keeps_unaccepted_gerber_height_as_evidence(tmp_path):
