@@ -64,7 +64,7 @@ def export_excel(path, unique_parts, cad_by_ref=None, dimension_results=None, sh
             getattr(r,n,None) is not None for n in ("length_mm","width_mm","height_mm")
         ))
         review_accepted="YES" if accepted else ("NO" if review_required else "NOT REQUIRED")
-        log.append([p.mpn,p.representative_ref,"Silkscreen; Solder Paste; MPN lookup; ODB++",selected,"YES" if review_required else "NO",review_accepted,remarks,now])
+        log.append([p.mpn,p.representative_ref,"Silkscreen; Solder Paste; MPN lookup",selected,"YES" if review_required else "NO",review_accepted,remarks,now])
     for sheet in wb.worksheets:
         for cell in sheet[1]: cell.font=Font(bold=True)
         sheet.freeze_panes="A2"; sheet.auto_filter.ref=sheet.dimensions
