@@ -56,7 +56,9 @@ def _read(path):
     # Preserve legacy behaviour/error diagnostics when no plausible row exists.
     return _raw_table(path,header=0)
 
-def parse_cad(path, mapping=None):
+def parse_cad(path, mapping=None, units='mm'):
+    if units not in ("mm","mils"): raise ValueError("CAD coordinate units must be mm or mils")
+    factor=0.0254 if units=="mils" else 1.0
     df=_read(path).fillna(""); cols=detect_columns(df); cols.update(mapping or {})
     if not cols.get("ref"):
         seen=", ".join(str(x) for x in list(df.columns)[:20])
@@ -75,7 +77,7 @@ def parse_cad(path, mapping=None):
             raise ValueError(f"Invalid CAD coordinates or angle at row {index+2} (Reference {ref})")
         side=get("layer")
         if side.strip().lower() in {"yes","no","y","n","true","false","0","1"}: side=""
-        out.append(CadRecord(ref=ref,mpn=get("mpn"),x=x,y=y,rotation=angle,layer=side,raw={**row.to_dict(),"_engineering_units":"unconfirmed"}))
+        out.append(CadRecord(ref=ref,mpn=get("mpn"),x=x*factor,y=y*factor,rotation=angle,layer=side,raw={**row.to_dict(),"_engineering_units":"mm","_original_units":units}))
     return out
 
 def inspect_cad(path):
