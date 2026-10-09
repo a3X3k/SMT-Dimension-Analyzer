@@ -147,9 +147,22 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self,"CAD import error",str(exc));return
         self.state.cad_path=Path(fn)
-        self.state.cad_records=records;self.state.dimension_results={};self.state.shape_models={}
+        self.state.cad_records=records
+                # A new CAD file defines a new board: discard all dependent prior data.
+                self.state.bom_path=None; self.state.bom_records=[]; self.state.unique_parts=[]
+                self.state.gerber_paths=[]; self.state.gerber_documents=[]
+                self.state.dimension_results={}; self.state.shape_models={}
+                self.state.mpn_lookup_results={}; self.state.manual_gerber_matches={}
+                self.dx=self.dy=self.da=0.0
+                for spin in (self.xoff,self.yoff,self.aoff):
+                    spin.blockSignals(True); spin.setValue(0.0); spin.blockSignals(False)
+                self.workspace.set_alignment(0,0,0)
+                self.workspace.set_data(cad=records,gerbers=[])
+                self.layer_table.setRowCount(0); self.table.setRowCount(0)
+                self.bom_info.setText('BOM: not loaded')
+                self.gerber_info.setText('Gerber: not loaded')
         self.cad_info.setText(f"CAD: {Path(fn).name} — {len(records)} placements — coordinates converted to mm")
-        self.workspace.set_data(cad=records);self.workspace.fit_board();self._update_status()
+        self.workspace.fit_board();self._update_status()
         self.tabs.setCurrentIndex(0)
 
     def import_bom(self):
