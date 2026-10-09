@@ -68,7 +68,7 @@ def test_export_accepted_body_and_location_warning(tmp_path):
     assert main["Body Length (mm)"]==3.2
     assert main["Body Width (mm)"]==1.6
     assert main["User Accepted"]=="YES"
-    assert _excel_row(wb["Location Verification"])["Status"]=="WARNING"
+    assert _excel_row(wb["Location Verification"])["Status"]=="POSITION WARNING / ROTATION NOT VERIFIED"
     assert _excel_row(wb["Processing Log"])["Review Accepted"]=="YES"
     assert _rows(t)["BODY_L_MM"]=="3.2"
     assert _rows(t)["USER_ACCEPTED"]=="YES"
