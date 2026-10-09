@@ -29,7 +29,6 @@ class ProjectState:
     name: str = "Untitled Project"
     bom_path: Optional[Path] = None
     cad_path: Optional[Path] = None
-    odb_path: Optional[Path] = None
     gerber_paths: list[Path] = field(default_factory=list)
     bom_records: list[BomRecord] = field(default_factory=list)
     unique_parts: list[UniquePart] = field(default_factory=list)
