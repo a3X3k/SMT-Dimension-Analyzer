@@ -1,7 +1,7 @@
 from pathlib import Path
 from PySide6.QtCore import QUrl,Qt
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import *
+from PySide6.QtWidgets import QDialog,*
 from models import ProjectState
 from parsers.cad_parser import inspect_cad,parse_cad
 from parsers.bom_parser import inspect_bom,parse_bom,group_unique_parts
@@ -47,7 +47,7 @@ class MainWindow(QMainWindow):
 
     def _files_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"Imported Data")
-        l.addWidget(QLabel("<b>Columns are detected automatically from file headings. No manual mapping is required.</b>"))
+        l.addWidget(QLabel("<b>CAD column mappings can be reviewed and corrected during import.</b>"))
         self.cad_info=QLabel("CAD: not loaded"); self.cad_info.setWordWrap(True); l.addWidget(self.cad_info)
         self.bom_info=QLabel("BOM: not loaded"); self.bom_info.setWordWrap(True); l.addWidget(self.bom_info)
         self.gerber_info=QLabel("Gerber: not loaded"); self.gerber_info.setWordWrap(True); l.addWidget(self.gerber_info)
@@ -130,20 +130,24 @@ class MainWindow(QMainWindow):
     def import_cad(self):
         fn,_=QFileDialog.getOpenFileName(self,"Import CAD","","CAD (*.xlsx *.xls *.csv *.txt)")
         if not fn:return
-        df,det=inspect_cad(fn)
-        required=("ref","x","y","rotation")
-        if not all(det.get(k) for k in required):
-            missing=", ".join(k.upper() for k in required if not det.get(k))
-            QMessageBox.warning(self,"CAD headings not recognized",f"Required CAD heading(s) not recognized: {missing}.\n\nExpected headings include Reference/RefDes, X location, Y location, and Angle/Rotation.")
-            return
+        try:
+            df,det=inspect_cad(fn)
+            from ui.mapping_dialog import ColumnMappingDialog
+            fields=[("ref","Reference / RefDes",True),("x","X Coordinate",True),
+                    ("y","Y Coordinate",True),("rotation","Angle / Rotation",True),
+                    ("mpn","Part Number / MPN",False),("layer","Top / Bottom / Mirror",False)]
+            dialog=ColumnMappingDialog("Confirm CAD column mapping",list(df.columns),fields,det,self)
+            if dialog.exec()!=QDialog.Accepted:return
+            records=parse_cad(fn,mapping=dialog.mapping())
+            if not records:
+                QMessageBox.warning(self,"CAD import","No CAD placement records found.");return
+        except Exception as exc:
+            QMessageBox.warning(self,"CAD import error",str(exc));return
         self.state.cad_path=Path(fn)
-        self.state.cad_records=parse_cad(fn); self.state.dimension_results={}; self.state.shape_models={}
-        self.cad_info.setText(f"CAD: {Path(fn).name} — {len(self.state.cad_records)} placements — units: mm")
-        self.workspace.set_data(cad=self.state.cad_records); self.workspace.fit_board(); self._update_status()
-        if not self.state.cad_records:
-            QMessageBox.warning(self,"CAD import","No CAD placement records were found. Check the file headings and data.")
-        else:
-            self.tabs.setCurrentIndex(0)
+        self.state.cad_records=records;self.state.dimension_results={};self.state.shape_models={}
+        self.cad_info.setText(f"CAD: {Path(fn).name} — {len(records)} placements — coordinate units: unconfirmed")
+        self.workspace.set_data(cad=records);self.workspace.fit_board();self._update_status()
+        self.tabs.setCurrentIndex(0)
 
     def import_bom(self):
         fn,_=QFileDialog.getOpenFileName(self,"Import BOM","","BOM (*.xlsx *.xls *.csv *.txt)")
