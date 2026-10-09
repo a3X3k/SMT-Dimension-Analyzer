@@ -6,10 +6,10 @@ from models import CadRecord
 ALIASES={
  "ref":{"ref","reference","refdes","ref des","ref desig","ref designator","designator","reference designator","component","component ref","component reference","comp ref","symbol"},
  "mpn":{"pn","mpn","ipn","part number","partnumber","part no","part number manufacturer","manufacturer part number"},
- "x":{"x","x position","x location","pos x","center x","centre x","x coord","x coordinate","location x","mid x"},
- "y":{"y","y position","y location","pos y","center y","centre y","y coord","y coordinate","location y","mid y"},
- "rotation":{"rotation","rot","angle","theta","orientation","rotation angle","component rotation"},
- "layer":{"layer","side","board side","pcb side","mount side","surface"}}
+ "x":{"x","x position","x location","pos x","center x","centre x","x coord","symbol x","sym x","x coordinate","location x","mid x"},
+ "y":{"y","y position","y location","pos y","center y","centre y","y coord","symbol y","sym y","y coordinate","location y","mid y"},
+ "rotation":{"rotation","rot","angle","theta","orientation","rotation angle","sym rotate","symbol rotate","component rotation"},
+ "layer":{"layer","side","board side","pcb side","mount side","mirror","sym mirror","surface"}}
 
 def _norm(v): return re.sub(r"[^a-z0-9]+"," ",str(v).strip().lower()).strip()
 def _float(v):
@@ -61,12 +61,21 @@ def parse_cad(path, mapping=None):
     if not cols.get("ref"):
         seen=", ".join(str(x) for x in list(df.columns)[:20])
         raise ValueError(f"Could not detect Reference column; manual mapping is required. Detected headings: {seen or '(none)'}")
+    required=("ref","x","y","rotation")
+    missing=[k for k in required if not cols.get(k)]
+    if missing: raise ValueError("Missing required CAD mapping: "+", ".join(missing))
+    if len(set(cols[k] for k in required))!=len(required): raise ValueError("CAD fields must map to different columns")
     out=[]
-    for _,row in df.iterrows():
+    for index,row in df.iterrows():
         ref=str(row[cols["ref"]]).strip()
         if not ref: continue
         get=lambda k: str(row[cols[k]]).strip() if cols.get(k) else ""
-        out.append(CadRecord(ref=ref,mpn=get("mpn"),x=_float(get("x")),y=_float(get("y")),rotation=_float(get("rotation")),layer=get("layer"),raw={**row.to_dict(),"_engineering_units":"mm"}))
+        x,y,angle=(_float(get(k)) for k in ("x","y","rotation"))
+        if x is None or y is None or angle is None:
+            raise ValueError(f"Invalid CAD coordinates or angle at row {index+2} (Reference {ref})")
+        side=get("layer")
+        if side.strip().lower() in {"yes","no","y","n","true","false","0","1"}: side=""
+        out.append(CadRecord(ref=ref,mpn=get("mpn"),x=x,y=y,rotation=angle,layer=side,raw={**row.to_dict(),"_engineering_units":"unconfirmed"}))
     return out
 
 def inspect_cad(path):
