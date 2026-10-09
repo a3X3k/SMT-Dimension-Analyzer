@@ -76,6 +76,12 @@ class MainWindow(QMainWindow):
     def _assign_layer(self,doc,value):
         doc.layer=value
         self.state.dimension_results={}; self.state.shape_models={}
+        for row in range(self.table.rowCount()):
+            self.table.setItem(row,10,QTableWidgetItem("RE-ANALYZE AFTER LAYER CHANGE"))
+            for col in (4,5,6,7,8,9,11):
+                self.table.setItem(row,col,QTableWidgetItem(""))
+        self.review_info.setText("Gerber layer assignment changed. Re-analyze dimensions before accepting or exporting results.")
+        self.workspace.show_review_bbox(None)
         self.gerber_info.setText("Gerber: "+", ".join(f"{d.path.name} [{d.layer}]" for d in self.state.gerber_documents))
         self.workspace.redraw(); self._update_status()
 
