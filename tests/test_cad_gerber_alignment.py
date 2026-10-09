@@ -9,8 +9,8 @@ from dimensions.gerber_dimension import _forward, _inverse
 ])
 def test_mil_placement_is_in_same_mm_frame_as_gerber(tmp_path,mil_x,mil_y):
     p=tmp_path/"CAD.txt"
-    p.write_text(f"refdes\\tsymbol_x\\tsymbol_y\\trotation\\tmirror\\n"
-                 f"R1\\t{mil_x}\\t{mil_y}\\t90\\tTop\\n")
+    p.write_text(f"refdes\tsymbol_x\tsymbol_y\trotation\tmirror\n"
+                 f"R1\t{mil_x}\t{mil_y}\t90\tTop\n")
     cad=parse_cad(p,units="mils")[0]
     gx,gy=mil_x*.0254,mil_y*.0254
     assert cad.x==pytest.approx(gx,abs=1e-9)
@@ -29,8 +29,8 @@ def test_gerber_alignment_inverse_matches_overlay(angle):
 
 def test_cad_rotation_is_not_scaled_by_mils_conversion(tmp_path):
     p=tmp_path/"CAD.txt"
-    p.write_text("refdes\\tsymbol_x\\tsymbol_y\\trotation\\tmirror\\n"
-                 "U1\\t1000\\t2000\\t225\\tBottom\\n")
+    p.write_text("refdes\tsymbol_x\tsymbol_y\trotation\tmirror\n"
+                 "U1\t1000\t2000\t225\tBottom\n")
     cad=parse_cad(p,units="mils")[0]
     assert cad.rotation==225
     assert cad.layer=="Bottom"
