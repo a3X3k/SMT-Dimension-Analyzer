@@ -53,3 +53,24 @@ def test_alignment_change_requires_fresh_analysis():
     assert w.state.shape_models=={}
     assert w.table.item(0,10).text()=="RE-ANALYZE AFTER ALIGNMENT"
     w.close()
+
+
+def test_layer_reassignment_invalidates_visible_review():
+    _app()
+    w=MainWindow()
+    part=UniquePart("MPN",["R1"],"R1")
+    w.state.unique_parts=[part]
+    w.state.dimension_results={"MPN":GerberDimensionResult(ref="R1",length_mm=2,width_mm=1,accepted=True)}
+    w.state.shape_models={"MPN":object()}
+    w._populate()
+    w.table.setItem(0,4,__import__("PySide6.QtWidgets",fromlist=["QTableWidgetItem"]).QTableWidgetItem("2.0"))
+    doc=GerberDocument(path=Path("top.gto"),layer="Top Silkscreen")
+    w.state.gerber_documents=[doc]
+    w._assign_layer(doc,"Other / Ignore")
+    assert doc.layer=="Other / Ignore"
+    assert w.state.dimension_results=={}
+    assert w.state.shape_models=={}
+    assert w.table.item(0,10).text()=="RE-ANALYZE AFTER LAYER CHANGE"
+    assert w.table.item(0,4).text()==""
+    assert "Re-analyze" in w.review_info.text()
+    w.close()
