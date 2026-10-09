@@ -51,7 +51,7 @@ def test_cad_excel_finds_header_after_report_metadata(tmp_path):
 def test_cad_mils_conversion_and_optional_part_number(tmp_path):
     from parsers.cad_parser import parse_cad
     path=tmp_path/"placement.txt"
-    path.write_text("refdes\\tsymbol_x\\tsymbol_y\\trotation\\tmirror\\nR1\\t1000\\t-500\\t90\\tTop\\n")
+    path.write_text("refdes\tsymbol_x\tsymbol_y\trotation\tmirror\nR1\t1000\t-500\t90\tTop\n")
     records=parse_cad(path,units="mils")
     assert len(records)==1
     assert records[0].ref=="R1"
