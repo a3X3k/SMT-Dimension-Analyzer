@@ -138,14 +138,17 @@ class MainWindow(QMainWindow):
                     ("mpn","Part Number / MPN",False),("layer","Top / Bottom / Mirror",False)]
             dialog=ColumnMappingDialog("Confirm CAD column mapping",list(df.columns),fields,det,self)
             if dialog.exec()!=QDialog.Accepted:return
-            records=parse_cad(fn,mapping=dialog.mapping())
+            units,ok=QInputDialog.getItem(self,"CAD coordinate units","Coordinates in source file:",["Millimetres (mm)","Mils (1/1000 inch)"],1 if Path(fn).suffix.lower()==".txt" else 0,False)
+            if not ok:return
+            unit_key="mils" if units.startswith("Mils") else "mm"
+            records=parse_cad(fn,mapping=dialog.mapping(),units=unit_key)
             if not records:
                 QMessageBox.warning(self,"CAD import","No CAD placement records found.");return
         except Exception as exc:
             QMessageBox.warning(self,"CAD import error",str(exc));return
         self.state.cad_path=Path(fn)
         self.state.cad_records=records;self.state.dimension_results={};self.state.shape_models={}
-        self.cad_info.setText(f"CAD: {Path(fn).name} — {len(records)} placements — coordinate units: unconfirmed")
+        self.cad_info.setText(f"CAD: {Path(fn).name} — {len(records)} placements — coordinates converted to mm")
         self.workspace.set_data(cad=records);self.workspace.fit_board();self._update_status()
         self.tabs.setCurrentIndex(0)
 
