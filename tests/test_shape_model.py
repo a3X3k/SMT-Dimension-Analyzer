@@ -407,7 +407,12 @@ def test_manual_body_override_survives_shape_rebuild_and_export(tmp_path):
     export_text(out,[part],{'ABC':edited},{'ABC':shape})
     lines=out.read_text(encoding='utf-8').splitlines()
     data=dict(zip(lines[0].split('\t'),lines[1].split('\t')))
-    assert data['BODY_L_MM']=='5.5'
-    assert data['BODY_W_MM']=='2.2'
+    # A pending manual edit retains provenance/evidence, but cannot be
+    # exported as approved body dimensions until explicitly accepted.
+    assert data['BODY_L_MM']==''
+    assert data['BODY_W_MM']==''
+    assert data['GERBER_L_MM']=='5.5'
+    assert data['GERBER_W_MM']=='2.2'
+    assert data['USER_ACCEPTED']=='NO'
     assert data['BODY_L_SOURCE']=='USER'
     assert data['BODY_W_SOURCE']=='USER'
