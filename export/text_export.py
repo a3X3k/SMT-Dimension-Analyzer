@@ -18,9 +18,9 @@ def export_text(path, unique_parts, dimension_results=None, shape_models=None):
             if not accepted:
                 provenance_available=any(getattr(s,n,"") for n in ("body_length_source","body_width_source","body_height_source"))
                 if provenance_available:
-                    if "gerber" in getattr(s,"body_length_source","").lower(): body_l=""
-                    if "gerber" in getattr(s,"body_width_source","").lower(): body_w=""
-                    if "gerber" in getattr(s,"body_height_source","").lower(): body_h=""
+                    if (getattr(s,"body_length_source","").lower() in ("user",) or "gerber" in getattr(s,"body_length_source","").lower()): body_l=""
+                    if (getattr(s,"body_width_source","").lower() in ("user",) or "gerber" in getattr(s,"body_width_source","").lower()): body_w=""
+                    if (getattr(s,"body_height_source","").lower() in ("user",) or "gerber" in getattr(s,"body_height_source","").lower()): body_h=""
                 elif r:
                     # Backward compatibility for older ShapeModel instances.
                     if getattr(s,"body_length_mm",None)==getattr(r,"length_mm",None): body_l=""
