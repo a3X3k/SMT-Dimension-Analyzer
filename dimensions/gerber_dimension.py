@@ -388,6 +388,10 @@ def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_m
             elif len(candidates)>1:
                 best.confidence="LOW"
                 best.remarks += f" Same-MPN instances disagree; selected best geometry from {len(candidates)} candidates and kept LOW confidence."
+            # Any credible same-MPN measurement outside the consensus cluster
+            # is conflicting evidence, even when a majority agrees. Never
+            # promote such a proposal to MEDIUM/HIGH or auto-accept it.
+            conflicting_instances = len(candidates) > 1 and len(cluster) < len(candidates)
             flags=_plausibility_notes(best)
             if flags:
                 best.confidence="LOW"
@@ -405,6 +409,12 @@ def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_m
                     best.confidence="MEDIUM"
                 else:
                     best.confidence="LOW"
+            if conflicting_instances:
+                best.confidence="LOW"
+                best.status="MANUAL REVIEW"
+                best.accepted=False
+                best.remarks += (f" Conflicting same-MPN dimensions across {len(candidates)} CAD instances "
+                                 f"({len(cluster)} in consensus); explicit manual review required.")
             out[p.mpn]=best
         else:
             out[p.mpn]=GerberDimensionResult(p.representative_ref,remarks="No CAD-backed instance produced a credible silkscreen body proposal; manual review required.")
