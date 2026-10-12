@@ -12,9 +12,9 @@ def test_closed_silkscreen_body_is_measured_and_requires_review(tmp_path):
     # Aperture stroke is 0.1 mm; measured body envelope is ~4.1 x 2.1 mm.
     path.write_text(
         "%FSLAX24Y24*%%MOMM*%%ADD10C,0.100*%"
-        "D10*X008000Y019000D02*X012000Y019000D01*"
-        "X012000Y021000D01*X008000Y021000D01*"
-        "X008000Y019000D01*M02*",
+        "D10*X080000Y190000D02*X120000Y190000D01*"
+        "X120000Y210000D01*X080000Y210000D01*"
+        "X080000Y190000D01*M02*",
         encoding="utf-8",
     )
     doc = parse_gerber(path)
