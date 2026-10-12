@@ -72,7 +72,7 @@ def parse_cad(path, mapping=None, units='mm'):
     for index,row in df.iterrows():
         ref=str(row[cols["ref"]]).strip()
         if not ref: continue
-        if re.fullmatch(r"#(?:NAME\\?|REF!|VALUE!|N/A|DIV/0!|NUM!|NULL!)",ref,re.IGNORECASE):
+        if re.fullmatch(r"#(?:NAME\?|REF!|VALUE!|N/A|DIV/0!|NUM!|NULL!)",ref,re.IGNORECASE):
             raise ValueError(f"Invalid spreadsheet-error CAD reference {ref!r} at row {index+2}; correct the source file before importing")
         normalized_ref=ref.upper()
         if normalized_ref in seen_refs:
