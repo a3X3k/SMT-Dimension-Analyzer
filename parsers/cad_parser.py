@@ -68,9 +68,16 @@ def parse_cad(path, mapping=None, units='mm'):
     if missing: raise ValueError("Missing required CAD mapping: "+", ".join(missing))
     if len(set(cols[k] for k in required))!=len(required): raise ValueError("CAD fields must map to different columns")
     out=[]
+    seen_refs=set()
     for index,row in df.iterrows():
         ref=str(row[cols["ref"]]).strip()
         if not ref: continue
+        if re.fullmatch(r"#(?:NAME\\?|REF!|VALUE!|N/A|DIV/0!|NUM!|NULL!)",ref,re.IGNORECASE):
+            raise ValueError(f"Invalid spreadsheet-error CAD reference {ref!r} at row {index+2}; correct the source file before importing")
+        normalized_ref=ref.upper()
+        if normalized_ref in seen_refs:
+            raise ValueError(f"Duplicate CAD reference {ref!r} at row {index+2}; correct the source file before importing")
+        seen_refs.add(normalized_ref)
         get=lambda k: str(row[cols[k]]).strip() if cols.get(k) else ""
         x,y,angle=(_float(get(k)) for k in ("x","y","rotation"))
         if x is None or y is None or angle is None:
