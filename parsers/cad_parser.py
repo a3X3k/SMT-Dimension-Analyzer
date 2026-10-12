@@ -21,13 +21,13 @@ def _float(v):
 
 def _raw_table(path, header=None):
     p=Path(path); ext=p.suffix.lower()
-    if ext in {".xlsx",".xls"}: return pd.read_excel(p,dtype=str,header=header)
-    if ext==".csv": return pd.read_csv(p,dtype=str,sep=None,engine="python",header=header)
+    if ext in {".xlsx",".xls"}: return pd.read_excel(p,dtype=str,header=header,keep_default_na=False)
+    if ext==".csv": return pd.read_csv(p,dtype=str,sep=None,engine="python",header=header,keep_default_na=False)
     if ext==".txt":
         sample=p.read_text(encoding="utf-8",errors="replace")[:8192]
         try: dialect=csv.Sniffer().sniff(sample, delimiters=",\t; "); sep=dialect.delimiter
         except csv.Error: sep=None
-        return pd.read_csv(p,dtype=str,sep=sep,engine="python",header=header)
+        return pd.read_csv(p,dtype=str,sep=sep,engine="python",header=header,keep_default_na=False)
     raise ValueError(f"Unsupported CAD format: {ext}")
 
 def detect_columns(df):
