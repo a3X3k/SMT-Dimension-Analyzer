@@ -59,7 +59,7 @@ def test_synthetic_cad_bom_gerber_to_reviewable_exports(tmp_path):
     header = [cell.value for cell in workbook["Shape Dimensions"][1]]
     rows = [dict(zip(header, row)) for row in workbook["Shape Dimensions"].iter_rows(min_row=2, values_only=True)]
     assert len(rows) == 2
-    chip = next(row for row in rows if row["PN"] == "CHIP-A")
+    chip = next(row for row in rows if row["PN / MPN"] == "CHIP-A")
     assert chip["User Accepted"] == "NO"
     assert chip["Body Length (mm)"] is None
     location = workbook["Location Verification"]
