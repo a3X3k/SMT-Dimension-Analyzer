@@ -27,3 +27,17 @@ def test_region_and_no_body_guess(tmp_path):
     p=write(tmp_path,'r.GTP','%FSLAX24Y24*%%MOMM*%%ADD10R,1X1*%D10*G36*X000000Y000000D02*X010000Y000000D01*X010000Y010000D01*G37*M02*')
     d=parse_gerber(p)
     assert len(d.primitives)==2 and all(x.region for x in d.primitives)
+
+
+def test_allegro_fsax35_without_zero_suppression(tmp_path):
+    # Allegro ART files declare FSAX35Y35 (no L/T) and MOIN.
+    # 01000000 is 100.00000 inches = 2540 mm, not 1000 mm.
+    p=write(tmp_path,'past_top.art',
+        '%FSAX35Y35*MOIN*%%ADD10C,0.01*%D10*'
+        'X01000000Y00200000D02*X01050000Y00250000D01*M02*')
+    d=parse_gerber(p)
+    assert d.units=='inch'
+    assert (d.format_int,d.format_dec)==(3,5)
+    assert d.primitives[0].x==2540.0
+    assert d.primitives[0].x2==2667.0
+    assert d.primitives[0].y==508.0
