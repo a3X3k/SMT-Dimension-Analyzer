@@ -28,7 +28,10 @@ class MainWindow(QMainWindow):
         bar=QHBoxLayout(); outer.addLayout(bar)
         self.cad_btn=QPushButton("1. Import CAD"); self.cad_btn.clicked.connect(self.import_cad); bar.addWidget(self.cad_btn)
         self.bom_btn=QPushButton("2. Import BOM"); self.bom_btn.clicked.connect(self.import_bom); bar.addWidget(self.bom_btn)
-        self.gerber_btn=QPushButton("3. Import Gerber"); self.gerber_btn.clicked.connect(self.import_gerber); bar.addWidget(self.gerber_btn)
+        self.gerber_btn=QPushButton("3. Import Gerber Layers"); self.gerber_btn.clicked.connect(self.import_gerber); bar.addWidget(self.gerber_btn)
+        bar.addWidget(QLabel("Board side:"))
+        self.side_selector=QComboBox(); self.side_selector.addItems(["Top","Bottom"])
+        self.side_selector.currentTextChanged.connect(self._switch_board_side); bar.addWidget(self.side_selector)
         self.fit=QPushButton("Fit Board"); self.fit.clicked.connect(lambda:self.workspace.fit_board()); bar.addWidget(self.fit)
         self.measure_btn=QPushButton("Measure"); self.measure_btn.setCheckable(True); self.measure_btn.toggled.connect(lambda v:self.workspace.set_measure_mode(v)); bar.addWidget(self.measure_btn)
         self.refs=QCheckBox("Ref Designators"); self.refs.setChecked(True); self.refs.toggled.connect(lambda v:self.workspace.toggle_refs(v)); bar.addWidget(self.refs)
@@ -55,7 +58,8 @@ class MainWindow(QMainWindow):
 
     def _layers_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"Gerber Layers")
-        l.addWidget(QLabel("Show/hide each file or correct its detected engineering layer type. Changes apply immediately."))
+        l.addWidget(QLabel("Import multiple Gerber files at once. Select Top/Bottom above to view one face; toggle each layer below."))
+        more=QPushButton("Add More Gerber Layers"); more.clicked.connect(lambda:self.import_gerber(append=True)); l.addWidget(more)
         op=QHBoxLayout(); l.addLayout(op); op.addWidget(QLabel("Gerber opacity"))
         self.gerber_opacity=QSlider(Qt.Horizontal); self.gerber_opacity.setRange(5,100); self.gerber_opacity.setValue(85); self.gerber_opacity.valueChanged.connect(lambda v:self.workspace.set_gerber_opacity(v/100)); op.addWidget(self.gerber_opacity)
         self.opacity_label=QLabel("85%"); self.gerber_opacity.valueChanged.connect(lambda v:self.opacity_label.setText(f"{v}%")); op.addWidget(self.opacity_label)
@@ -66,7 +70,7 @@ class MainWindow(QMainWindow):
         types=["Top Silkscreen","Bottom Silkscreen","Top Solder Mask","Bottom Solder Mask","Top Paste","Bottom Paste","Top Copper","Bottom Copper","Other / Ignore"]
         self.layer_table.setRowCount(len(self.state.gerber_documents))
         for r,d in enumerate(self.state.gerber_documents):
-            vis=QCheckBox(); vis.setChecked(True); vis.toggled.connect(lambda on,p=str(d.path):self.workspace.set_layer_visible(p,on))
+            vis=QCheckBox(); vis.setChecked(str(d.path) in self.workspace.visible_layers); vis.toggled.connect(lambda on,p=str(d.path):self.workspace.set_layer_visible(p,on))
             box=QWidget(); bl=QHBoxLayout(box); bl.setContentsMargins(8,0,0,0); bl.addWidget(vis); bl.addStretch(); self.layer_table.setCellWidget(r,0,box)
             self.layer_table.setItem(r,1,QTableWidgetItem(d.path.name))
             combo=QComboBox(); combo.addItems(types)
@@ -163,6 +167,7 @@ class MainWindow(QMainWindow):
         for spin in (self.xoff,self.yoff,self.aoff):
             spin.blockSignals(True); spin.setValue(0.0); spin.blockSignals(False)
         self.workspace.set_alignment(0,0,0)
+        self.side_selector.setCurrentText("Top")
         self.workspace.set_data(cad=records,gerbers=[])
         self.layer_table.setRowCount(0); self.table.setRowCount(0)
         self.bom_info.setText('BOM: not loaded')
@@ -195,12 +200,23 @@ class MainWindow(QMainWindow):
             f"{len(stats['bom_only'])} BOM-only; {len(stats['cad_only'])} CAD-only")
         self.state.dimension_results={}; self.state.shape_models={}; self._populate(); self._update_status()
 
-    def import_gerber(self):
-        files,_=QFileDialog.getOpenFileNames(self,"Import Gerber Layers","","Gerber (*.GTL *.GBL *.GTO *.GBO *.GTP *.GBP *.gbr *.ger *.pho *.art);;All Files (*)")
+    def _switch_board_side(self,side):
+        self.workspace.set_board_side(side)
+        self.workspace.show_review_bbox(None)
+        self.workspace.fit_board()
+
+    def import_gerber(self,append=False):
+        files,_=QFileDialog.getOpenFileNames(self,"Import Gerber Layers","","Gerber (*.GTL *.GBL *.GTO *.GBO *.GTS *.GBS *.GTP *.GBP *.gbr *.ger *.pho *.art);;All Files (*)")
         if not files:return
-        self.state.gerber_paths=[Path(x) for x in files]; self.state.gerber_documents=parse_gerber_files(files); self.state.dimension_results={}; self.state.shape_models={}
+        existing=self.state.gerber_paths if append else []
+        paths=list(dict.fromkeys([*existing,*(Path(x) for x in files)]))
+        previous_visible=set(self.workspace.visible_layers) if append else set()
+        self.state.gerber_paths=paths; self.state.gerber_documents=parse_gerber_files(paths); self.state.dimension_results={}; self.state.shape_models={}
+        self.workspace.set_data(gerbers=self.state.gerber_documents)
+        if append:
+            self.workspace.visible_layers=previous_visible | {str(p) for p in paths if p not in existing}
         self.gerber_info.setText("Gerber: "+", ".join(f"{d.path.name} [{d.layer}]" for d in self.state.gerber_documents))
-        self.workspace.set_data(gerbers=self.state.gerber_documents); self._refresh_layers(); self.workspace.fit_board(); self._update_status()
+        self._refresh_layers(); self.workspace.fit_board(); self._update_status()
 
     def _measurement_changed(self,text):
         if text:self.statusBar().showMessage(text)
