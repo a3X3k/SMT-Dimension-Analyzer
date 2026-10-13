@@ -91,7 +91,7 @@ class MainWindow(QMainWindow):
 
     def _alignment_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"CAD ↔ Gerber Alignment")
-        l.addWidget(QLabel("Select a CAD reference as (0,0), enter the matching Gerber point, then confirm alignment before PAD matching."))
+        l.addWidget(QLabel("Adjust CAD and Gerber origin crosshairs independently. X/Y values are in millimetres."))
         form=QFormLayout(); l.addLayout(form)
         self.xoff=QDoubleSpinBox(); self.yoff=QDoubleSpinBox(); self.aoff=QDoubleSpinBox()
         for s in (self.xoff,self.yoff): s.setRange(-10000,10000); s.setDecimals(4); s.setSingleStep(.01)
@@ -101,6 +101,16 @@ class MainWindow(QMainWindow):
         n=QGridLayout(); l.addLayout(n)
         for text,dx,dy,da,r,c in [("X -0.01",-.01,0,0,0,0),("X +0.01",.01,0,0,0,1),("Y -0.01",0,-.01,0,1,0),("Y +0.01",0,.01,0,1,1),("A -0.1°",0,0,-.1,2,0),("A +0.1°",0,0,.1,2,1)]:
             b=QPushButton(text); b.clicked.connect(lambda _,x=dx,y=dy,a=da:self._nudge(x,y,a)); n.addWidget(b,r,c)
+        origins=QFormLayout(); l.addLayout(origins)
+        self.cad_origin_x=QDoubleSpinBox(); self.cad_origin_y=QDoubleSpinBox()
+        self.gerber_origin_x=QDoubleSpinBox(); self.gerber_origin_y=QDoubleSpinBox()
+        for spin in (self.cad_origin_x,self.cad_origin_y,self.gerber_origin_x,self.gerber_origin_y):
+            spin.setRange(-10000,10000); spin.setDecimals(4); spin.setSingleStep(.1)
+            spin.valueChanged.connect(self._crosshair_changed)
+        origins.addRow("CAD origin X (mm)",self.cad_origin_x)
+        origins.addRow("CAD origin Y (mm)",self.cad_origin_y)
+        origins.addRow("Gerber origin X (mm)",self.gerber_origin_x)
+        origins.addRow("Gerber origin Y (mm)",self.gerber_origin_y)
         l.addStretch()
 
     def _review_tab(self):
@@ -221,6 +231,11 @@ class MainWindow(QMainWindow):
     def _measurement_changed(self,text):
         if text:self.statusBar().showMessage(text)
         else:self.statusBar().clearMessage()
+
+    def _crosshair_changed(self):
+        self.workspace.set_crosshair_origins(
+            self.cad_origin_x.value(),self.cad_origin_y.value(),
+            self.gerber_origin_x.value(),self.gerber_origin_y.value())
 
     def _alignment_changed(self):
         self.dx=self.xoff.value(); self.dy=self.yoff.value(); self.da=self.aoff.value()
