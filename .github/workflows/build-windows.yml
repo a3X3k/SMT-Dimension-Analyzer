@@ -36,6 +36,25 @@ jobs:
           if ($p.HasExited) { throw "Frozen app exited during startup smoke test with code $($p.ExitCode)" }
           Stop-Process -Id $p.Id -Force
           Write-Host 'Frozen application startup smoke test passed'
+      - name: Package versioned release with checksum
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "ci-$($env:GITHUB_SHA.Substring(0, 7))" }
+          $package = "SMT-Dimension-Analyzer-$version-Windows-x64"
+          New-Item -ItemType Directory -Force -Path "release/$package" | Out-Null
+          Copy-Item 'dist/SMT_Dimension_Analyzer.exe' "release/$package/"
+          $hash = (Get-FileHash "release/$package/SMT_Dimension_Analyzer.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  SMT_Dimension_Analyzer.exe" | Set-Content -Encoding ascii "release/$package/SHA256SUMS.txt"
+          Compress-Archive -Path "release/$package/*" -DestinationPath "release/$package.zip"
+          Write-Host "Release package: release/$package.zip"
+          Write-Host "SHA256: $hash"
+      - name: Upload versioned release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMT-Dimension-Analyzer-Release-Package
+          path: release/*.zip
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: SMT-Dimension-Analyzer-Windows-x64
