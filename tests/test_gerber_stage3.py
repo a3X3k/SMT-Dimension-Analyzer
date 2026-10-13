@@ -31,13 +31,13 @@ def test_region_and_no_body_guess(tmp_path):
 
 def test_allegro_fsax35_without_zero_suppression(tmp_path):
     # Allegro ART files declare FSAX35Y35 (no L/T) and MOIN.
-    # 01000000 is 100.00000 inches = 2540 mm, not 1000 mm.
+    # 01000000 is 10.00000 inches = 254 mm, not 100 mm.
     p=write(tmp_path,'past_top.art',
         '%FSAX35Y35*MOIN*%%ADD10C,0.01*%D10*'
         'X01000000Y00200000D02*X01050000Y00250000D01*M02*')
     d=parse_gerber(p)
     assert d.units=='inch'
     assert (d.format_int,d.format_dec)==(3,5)
-    assert d.primitives[0].x==2540.0
-    assert d.primitives[0].x2==2667.0
-    assert d.primitives[0].y==508.0
+    assert d.primitives[0].x==254.0
+    assert round(d.primitives[0].x2,3)==266.7
+    assert d.primitives[0].y==50.8
