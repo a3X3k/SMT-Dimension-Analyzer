@@ -5,9 +5,8 @@ from parsers.gerber_parser import GerberDocument, Primitive
 from ui.pcb_workspace import PCBWorkspace
 
 
-def test_board_side_filters_cad_and_gerber(qtbot):
+def test_board_side_filters_cad_and_gerber(qapp):
     view=PCBWorkspace()
-    qtbot.addWidget(view)
     top=GerberDocument(Path("top.gto"),"Top Silkscreen",primitives=[
         Primitive("line",0,0,2,0)])
     bottom=GerberDocument(Path("bottom.gbo"),"Bottom Silkscreen",primitives=[
