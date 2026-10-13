@@ -87,6 +87,30 @@ class MainWindow(QMainWindow):
                 self.table.setItem(row,col,QTableWidgetItem(""))
         self.review_info.setText("Gerber layer assignment changed. Re-analyze dimensions before accepting or exporting results.")
         self.workspace.show_review_bbox(None)
+        # Diagnose import-scale mismatches using actual CAD/Gerber geometry, not
+        # the selected units label or the scene's visual crosshair positions.
+        cad_points=[(c.x,c.y) for c in self.state.cad_records if c.x is not None and c.y is not None]
+        gerber_bounds=[d.bounds() for d in self.state.gerber_documents if d.bounds() is not None]
+        if len(cad_points)>1 and gerber_bounds:
+            cad_width=max(x for x,y in cad_points)-min(x for x,y in cad_points)
+            gerber_width=max(b[2] for b in gerber_bounds)-min(b[0] for b in gerber_bounds)
+            if cad_width>0 and gerber_width>0 and gerber_width/cad_width>10:
+                # If the CAD was accidentally scaled as mils, re-read the
+                # original file in mm only when its width matches the Gerber.
+                try:
+                    original=parse_cad(self.state.cad_path,units="mm")
+                    xs=[c.x for c in original if c.x is not None]
+                    source_width=max(xs)-min(xs) if len(xs)>1 else 0
+                    if source_width and 0.5 <= source_width/gerber_width <= 2.0:
+                        self.state.cad_records=original
+                        self.workspace.set_data(cad=original)
+                        cad_width=source_width
+                except (ValueError,KeyError,IndexError):
+                    pass
+                if gerber_width/cad_width>10:
+                    QMessageBox.warning(self,"CAD/Gerber coordinate mismatch",
+                        f"CAD width: {cad_width:.3f} mm; Gerber width: {gerber_width:.3f} mm. "
+                        "Check the CAD coordinate mapping and source units; automatic alignment was not applied.")
         self.gerber_info.setText("Gerber: "+", ".join(f"{d.path.name} [{d.layer}]" for d in self.state.gerber_documents))
         self.workspace.redraw(); self._update_status()
 
