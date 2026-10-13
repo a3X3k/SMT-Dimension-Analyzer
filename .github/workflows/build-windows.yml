@@ -49,6 +49,35 @@ jobs:
           Compress-Archive -Path "release/$package/*" -DestinationPath "release/$package.zip"
           Write-Host "Release package: release/$package.zip"
           Write-Host "SHA256: $hash"
+      - name: Verify packaged executable and checksum
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = @(Get-ChildItem 'release/*.zip')
+          if ($zip.Count -ne 1) { throw "Expected exactly one release ZIP, found $($zip.Count)" }
+          New-Item -ItemType Directory -Force -Path 'release-verify' | Out-Null
+          Expand-Archive -LiteralPath $zip[0].FullName -DestinationPath 'release-verify'
+          $exe = Join-Path 'release-verify' 'SMT_Dimension_Analyzer.exe'
+          $sums = Join-Path 'release-verify' 'SHA256SUMS.txt'
+          if (!(Test-Path $exe) -or !(Test-Path $sums)) { throw 'Release ZIP is missing EXE or SHA256SUMS.txt' }
+          $expected = (Get-Content $sums -Raw).Trim()
+          if ($expected -notmatch '^([0-9a-fA-F]{64})  SMT_Dimension_Analyzer\\.exe        uses: actions/upload-artifact@v4
+        with:
+          name: SMT-Dimension-Analyzer-Release-Package
+          path: release/*.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SMT-Dimension-Analyzer-Windows-x64
+          path: dist/SMT_Dimension_Analyzer.exe
+          if-no-files-found: error
+) { throw 'Malformed checksum manifest' }
+          $actual = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $Matches[1].ToLowerInvariant()) { throw 'Release EXE checksum mismatch' }
+          $original = (Get-FileHash 'dist/SMT_Dimension_Analyzer.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $original) { throw 'Packaged EXE differs from smoke-tested executable' }
+          Write-Host "Verified release archive: $($zip[0].Name)"
+          Write-Host "Verified SHA256: $actual"
       - name: Upload versioned release package
         uses: actions/upload-artifact@v4
         with:
