@@ -271,7 +271,8 @@ class MainWindow(QMainWindow):
 
     def _alignment_changed(self):
         self.dx=self.xoff.value(); self.dy=self.yoff.value(); self.da=self.aoff.value()
-        self.alignment_confirmed=False\n        self.alignment_status.setText("Alignment changed — confirmation required")
+        self.alignment_confirmed=False
+        self.alignment_status.setText("Alignment changed — confirmation required")
         self._save_side_alignment()
         self.workspace.set_alignment(self.dx,self.dy,self.da)
         if self.state.dimension_results:
