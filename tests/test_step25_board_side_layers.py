@@ -1,11 +1,15 @@
 """Step 25: top/bottom PCB workspace isolation and independent layer visibility."""
+import os
+os.environ.setdefault("QT_QPA_PLATFORM","offscreen")
+from PySide6.QtWidgets import QApplication
 from pathlib import Path
 from models import CadRecord
 from parsers.gerber_parser import GerberDocument, Primitive
 from ui.pcb_workspace import PCBWorkspace
 
 
-def test_board_side_filters_cad_and_gerber(qapp):
+def test_board_side_filters_cad_and_gerber():
+    app=QApplication.instance() or QApplication([])
     view=PCBWorkspace()
     top=GerberDocument(Path("top.gto"),"Top Silkscreen",primitives=[
         Primitive("line",0,0,2,0)])
