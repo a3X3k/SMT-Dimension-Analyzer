@@ -13,7 +13,7 @@ class PCBWorkspace(QGraphicsView):
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setBackgroundBrush(QColor("#292929"))
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.cad=[]; self.gerbers=[]; self.visible_layers=set(); self.show_refs=True
+        self.cad=[]; self.gerbers=[]; self.visible_layers=set(); self.show_refs=True; self.board_side='Top'
         self.dx=self.dy=self.angle=0.0; self.selected_ref=""; self.review_bbox=None
         self.gerber_opacity=.85; self.measure_mode=False; self.measure_points=[]
 
@@ -25,6 +25,26 @@ class PCBWorkspace(QGraphicsView):
         if gerbers is not None:
             self.gerbers=gerbers; self.visible_layers={str(d.path) for d in gerbers}
         self.redraw()
+
+    def set_board_side(self,side):
+        if side not in ('Top','Bottom'):
+            raise ValueError('Board side must be Top or Bottom')
+        self.board_side=side
+        self.measure_points=[]
+        self.redraw()
+
+    def _cad_on_side(self,c):
+        value=(c.layer or '').strip().lower()
+        if value in ('bottom','bot','b','back','bottom side','bottom layer'):
+            return self.board_side=='Bottom'
+        if value in ('top','t','front','top side','top layer'):
+            return self.board_side=='Top'
+        # Unknown side is not safe to show on both board faces.
+        return self.board_side=='Top'
+
+    def _gerber_on_side(self,d):
+        return d.layer.startswith(self.board_side+' ') or (
+            self.board_side=='Top' and d.layer in ('Other / Ignore','Unknown','Manual Mapping Required'))
 
     def set_alignment(self,dx,dy,angle):
         self.dx=float(dx); self.dy=float(dy); self.angle=float(angle); self.redraw()
@@ -48,9 +68,9 @@ class PCBWorkspace(QGraphicsView):
         self.redraw()
 
     def fit_board(self):
-        pts=[(c.x,-c.y) for c in self.cad if c.x is not None and c.y is not None]
+        pts=[(c.x,-c.y) for c in self.cad if c.x is not None and c.y is not None and self._cad_on_side(c)]
         for d in self.gerbers:
-            if str(d.path) not in self.visible_layers: continue
+            if str(d.path) not in self.visible_layers or not self._gerber_on_side(d): continue
             b=d.bounds()
             if b:
                 for x,y in ((b[0],b[1]),(b[2],b[3])):
@@ -68,7 +88,7 @@ class PCBWorkspace(QGraphicsView):
     def zoom_to_ref(self,ref):
         self.selected_ref=ref; self.redraw()
         c=next((x for x in self.cad if x.ref==ref),None)
-        if c and c.x is not None and c.y is not None:
+        if c and c.x is not None and c.y is not None and self._cad_on_side(c):
             self.resetTransform(); self.scale(18,18); self.centerOn(c.x,-c.y)
 
     def _tx(self,x,y):
@@ -97,7 +117,7 @@ class PCBWorkspace(QGraphicsView):
         cad_pen=QPen(QColor("#E6E6E6")); cad_pen.setCosmetic(True); cad_pen.setWidthF(.8)
         sel_pen=QPen(QColor("#66FF33")); sel_pen.setCosmetic(True); sel_pen.setWidthF(2)
         for c in self.cad:
-            if c.x is None or c.y is None: continue
+            if c.x is None or c.y is None or not self._cad_on_side(c): continue
             pen=sel_pen if c.ref==self.selected_ref else cad_pen
             r=QGraphicsRectItem(-.65,-.45,1.3,.9); r.setPos(c.x,-c.y); r.setRotation(-(c.rotation or 0))
             r.setPen(pen); r.setData(0,c.ref); self.scene.addItem(r)
