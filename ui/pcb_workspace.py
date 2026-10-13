@@ -117,22 +117,25 @@ class PCBWorkspace(QGraphicsView):
 
     def redraw(self):
         self.scene.clear()
+        # Batch Gerber geometry by layer: a single graphics item per layer
+        # avoids thousands of QGraphicsItem allocations on every alignment nudge.
         gerber_pen=QPen(QColor("#FFB74D")); gerber_pen.setCosmetic(True); gerber_pen.setWidthF(.8)
-        gerber_brush=QBrush(QColor("#FFB74D"))
         for d in self.gerbers:
-            if str(d.path) not in self.visible_layers: continue
+            if str(d.path) not in self.visible_layers or not self._gerber_on_side(d): continue
+            path=QPainterPath()
             for p in d.primitives:
-                item=None
                 if p.kind=="line" and None not in (p.x,p.y,p.x2,p.y2):
                     x1,y1=self._tx(p.x,p.y); x2,y2=self._tx(p.x2,p.y2)
-                    item=self.scene.addLine(x1,-y1,x2,-y2,gerber_pen)
+                    path.moveTo(x1,-y1); path.lineTo(x2,-y2)
                 elif p.kind=="flash" and p.x is not None and p.y is not None:
                     x,y=self._tx(p.x,p.y); ap=d.apertures.get(p.aperture); sx=sy=.25
                     if ap and ap.params:
                         sx=ap.params[0]; sy=ap.params[1] if len(ap.params)>1 else sx
                         if d.units=="inch": sx*=25.4; sy*=25.4
-                    item=self.scene.addEllipse(x-sx/2,-y-sy/2,sx,sy,gerber_pen)
-                if item:item.setOpacity(self.gerber_opacity)
+                    path.addEllipse(x-sx/2,-y-sy/2,sx,sy)
+            if not path.isEmpty():
+                item=self.scene.addPath(path,gerber_pen)
+                item.setOpacity(self.gerber_opacity)
 
         cad_pen=QPen(QColor("#E6E6E6")); cad_pen.setCosmetic(True); cad_pen.setWidthF(.8)
         sel_pen=QPen(QColor("#66FF33")); sel_pen.setCosmetic(True); sel_pen.setWidthF(2)
