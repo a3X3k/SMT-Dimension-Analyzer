@@ -15,7 +15,7 @@ class PCBWorkspace(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.cad=[]; self.gerbers=[]; self.visible_layers=set(); self.show_refs=True; self.board_side='Top'
         self.dx=self.dy=self.angle=0.0; self.selected_ref=""; self.review_bbox=None
-        self.gerber_opacity=.85; self.measure_mode=False; self.measure_points=[]
+        self.gerber_opacity=.85; self.measure_mode=False; self.measure_points=[]; self.origin_point=None
 
     def wheelEvent(self,e):
         self.scale(1.18 if e.angleDelta().y()>0 else 1/1.18,1.18 if e.angleDelta().y()>0 else 1/1.18)
@@ -24,6 +24,10 @@ class PCBWorkspace(QGraphicsView):
         if cad is not None:self.cad=cad
         if gerbers is not None:
             self.gerbers=gerbers; self.visible_layers={str(d.path) for d in gerbers}
+        self.redraw()
+
+    def set_origin_point(self,x,y):
+        self.origin_point=(float(x),float(y)) if x is not None and y is not None else None
         self.redraw()
 
     def set_board_side(self,side):
@@ -131,6 +135,16 @@ class PCBWorkspace(QGraphicsView):
             b=self.review_bbox; pen=QPen(QColor("#66FF33")); pen.setCosmetic(True); pen.setWidthF(2.5)
             self.scene.addRect(b[0],-b[3],b[2]-b[0],b[3]-b[1],pen)
 
+        if self.origin_point is not None:
+            ox,oy=self.origin_point
+            pen=QPen(QColor("#00E5FF")); pen.setCosmetic(True); pen.setWidthF(2)
+            self.scene.addLine(ox-2,-oy,ox+2,-oy,pen)
+            self.scene.addLine(ox,-oy-2,ox,-oy+2,pen)
+            marker=QGraphicsSimpleTextItem("Origin (0, 0)")
+            marker.setBrush(QBrush(QColor("#00E5FF")))
+            marker.setPos(ox+1,-oy+1)
+            marker.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+            self.scene.addItem(marker)
         if len(self.measure_points)==2:
             a,b=self.measure_points; pen=QPen(QColor("#66FF33")); pen.setCosmetic(True); pen.setWidthF(2)
             self.scene.addLine(a.x(),a.y(),b.x(),b.y(),pen)
