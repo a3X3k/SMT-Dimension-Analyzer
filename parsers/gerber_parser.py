@@ -68,8 +68,10 @@ def parse_gerber(path, layer_override=None):
         cmd=raw.strip().rstrip('*')
         if not cmd:continue
         if cmd.startswith('FS'):
-            m=re.search(r'FS([LT])A?X(\d)(\d)Y(\d)(\d)',cmd)
-            if m: doc.zero_suppression=m.group(1); doc.format_int=int(m.group(2)); doc.format_dec=int(m.group(3))
+            m=re.search(r'FS([LT])?A?X(\d)(\d)Y(\d)(\d)',cmd)
+            if m:
+                if m.group(1): doc.zero_suppression=m.group(1)
+                doc.format_int=int(m.group(2)); doc.format_dec=int(m.group(3))
             continue
         if cmd.startswith('MO'):
             doc.units='mm' if 'MM' in cmd else 'inch' if 'IN' in cmd else doc.units; continue
