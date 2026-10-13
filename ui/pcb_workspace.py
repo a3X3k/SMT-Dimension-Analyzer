@@ -154,6 +154,12 @@ class PCBWorkspace(QGraphicsView):
             b=self.review_bbox; pen=QPen(QColor("#66FF33")); pen.setCosmetic(True); pen.setWidthF(2.5)
             self.scene.addRect(b[0],-b[3],b[2]-b[0],b[3]-b[1],pen)
 
+        # Draw both independently adjustable origin markers on the active board side.
+        cx,cy=self.cad_origin
+        gx,gy=self._tx(*self.gerber_origin)
+        self._draw_origin_crosshair(cx,cy,"#00E5FF","CAD origin (0,0)")
+        self._draw_origin_crosshair(gx,gy,"#FF80AB","Gerber origin (0,0)")
+
         if self.origin_point is not None:
             ox,oy=self.origin_point
             pen=QPen(QColor("#00E5FF")); pen.setCosmetic(True); pen.setWidthF(2)
