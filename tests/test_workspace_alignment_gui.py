@@ -4,7 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM","offscreen")
 
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
-from PySide6.QtWidgets import QGraphicsLineItem
+from PySide6.QtWidgets import QGraphicsPathItem
 from models import CadRecord,UniquePart
 from parsers.gerber_parser import GerberDocument,Primitive
 from dimensions.gerber_dimension import GerberDimensionResult
@@ -24,20 +24,25 @@ def test_overlay_uses_mm_coordinates_and_alignment():
         primitives=[Primitive(kind="line",x=25.4,y=50.8,x2=26.4,y2=50.8)])
     w.set_data(cad=cad,gerbers=[doc])
     def gerber_line():
-        lines=[i for i in w.scene.items() if isinstance(i,QGraphicsLineItem)]
-        return next(i.line() for i in lines if abs(i.line().length()-1.0)<1e-7)
+        paths=[i for i in w.scene.items() if isinstance(i,QGraphicsPathItem)]
+        assert len(paths)==1
+        path=paths[0].path()
+        assert path.elementCount()==2
+        start=path.elementAt(0); end=path.elementAt(1)
+        assert abs((end.x-start.x)**2+(end.y-start.y)**2-1.0)<1e-7
+        return start
     initial=gerber_line()
-    assert abs(initial.x1()-25.4)<1e-8
-    assert abs(initial.y1()+50.8)<1e-8
+    assert abs(initial.x-25.4)<1e-8
+    assert abs(initial.y+50.8)<1e-8
     w.set_alignment(1.0,-2.0,0)
     shifted=gerber_line()
-    assert abs(shifted.x1()-26.4)<1e-8
-    assert abs(shifted.y1()+48.8)<1e-8
+    assert abs(shifted.x-26.4)<1e-8
+    assert abs(shifted.y+48.8)<1e-8
     assert cad[0].x==25.4 and cad[0].y==50.8
     w.set_alignment(0,0,90)
     rotated=gerber_line()
-    assert abs(rotated.x1()+50.8)<1e-8
-    assert abs(rotated.y1()+25.4)<1e-8
+    assert abs(rotated.x+50.8)<1e-8
+    assert abs(rotated.y+25.4)<1e-8
     w.close()
 
 
