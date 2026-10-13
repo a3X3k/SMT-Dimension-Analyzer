@@ -21,6 +21,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("SMT Component Dimension Analyzer — Visual Engineering Review")
         self.resize(1500,900)
         self.state=ProjectState(); self.dx=self.dy=self.da=0.0; self.alignment_confirmed=False
+        self._side_alignments={}
         self._build(); self._update_status()
 
     def _build(self):
@@ -180,6 +181,9 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self,"CAD import","No CAD placement records found.");return
         except Exception as exc:
             QMessageBox.warning(self,"CAD import error",str(exc));return
+        self._side_alignments.clear()
+        self.alignment_confirmed=False
+        self.alignment_status.setText("Alignment not confirmed")
         self.state.cad_path=Path(fn)
         self.state.cad_records=records
         # A new CAD file defines a new board: discard all dependent prior data.
@@ -267,6 +271,7 @@ class MainWindow(QMainWindow):
         paths=list(dict.fromkeys([*existing,*(Path(x) for x in files)]))
         previous_visible=set(self.workspace.visible_layers) if append else set()
         self.state.gerber_paths=paths; self.state.gerber_documents=parse_gerber_files(paths); self.state.dimension_results={}; self.state.shape_models={}
+        self._side_alignments.clear()
         self.alignment_confirmed=False; self.alignment_status.setText("Gerber layers changed — confirm alignment")
         self.workspace.set_data(gerbers=self.state.gerber_documents)
         if append:
@@ -279,6 +284,7 @@ class MainWindow(QMainWindow):
         else:self.statusBar().clearMessage()
 
     def _crosshair_changed(self):
+        self._save_side_alignment()
         self.workspace.set_crosshair_origins(
             self.cad_origin_x.value(),self.cad_origin_y.value(),
             self.gerber_origin_x.value(),self.gerber_origin_y.value())
