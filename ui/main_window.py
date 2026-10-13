@@ -173,7 +173,7 @@ class MainWindow(QMainWindow):
                     ("mpn","Part Number / MPN",False),("layer","Top / Bottom / Mirror",False)]
             dialog=ColumnMappingDialog("Confirm CAD column mapping",list(df.columns),fields,det,self)
             if dialog.exec()!=QDialog.Accepted:return
-            units,ok=QInputDialog.getItem(self,"CAD coordinate units","Coordinates in source file:",["Millimetres (mm)","Mils (1/1000 inch)"],1 if Path(fn).suffix.lower()==".txt" else 0,False)
+            units,ok=QInputDialog.getItem(self,"CAD coordinate units","Coordinates in source file:",["Millimetres (mm)","Mils (1/1000 inch)"],0,False)
             if not ok:return
             unit_key="mils" if units.startswith("Mils") else "mm"
             records=parse_cad(fn,mapping=dialog.mapping(),units=unit_key)
