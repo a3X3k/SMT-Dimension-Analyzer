@@ -107,7 +107,7 @@ class PCBWorkspace(QGraphicsView):
     def _draw_origin_crosshair(self,x,y,color,label):
         from PySide6.QtCore import QRectF
         pen=QPen(QColor(color)); pen.setCosmetic(True); pen.setWidthF(1.5)
-        extent=5000.0
+        extent=150.0
         self.scene.addLine(x-extent,-y,x+extent,-y,pen)
         self.scene.addLine(x,-y-extent,x,-y+extent,pen)
         text=self.scene.addSimpleText(label)
