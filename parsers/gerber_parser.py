@@ -37,7 +37,9 @@ def classify_gerber(path):
         if 'silk' in name and side:return f'{side} Silkscreen'
         if ('soldermask' in name or 'solder_mask' in name or 'mask' in name) and side:return f'{side} Solder Mask'
         if ('solderpaste' in name or 'solder_paste' in name or 'paste' in name or 'past' in name) and side:return f'{side} Paste'
-    if ext == ".art" and "outline" in name:return "Board Outline"\n    if ext == ".art" and "drill" in name:return "Drill"\n    if ext in GENERIC:return "Manual Mapping Required"
+    if ext == ".art" and "outline" in name:return "Board Outline"
+    if ext == ".art" and "drill" in name:return "Drill"
+    if ext in GENERIC:return "Manual Mapping Required"
     return "Unknown"
 
 def _tokenize(text):
