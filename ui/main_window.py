@@ -211,9 +211,40 @@ class MainWindow(QMainWindow):
         self.state.dimension_results={}; self.state.shape_models={}; self._populate(); self._update_status()
 
     def _switch_board_side(self,side):
+        self._restore_side_alignment(side)
         self.workspace.set_board_side(side)
         self.workspace.show_review_bbox(None)
         self.workspace.fit_board()
+
+    def _save_side_alignment(self):
+        if not hasattr(self,"_side_alignments") or not hasattr(self,"cad_origin_x"):
+            return
+        side=self.workspace.board_side
+        self._side_alignments[side]=(
+            self.xoff.value(),self.yoff.value(),self.aoff.value(),
+            self.cad_origin_x.value(),self.cad_origin_y.value(),
+            self.gerber_origin_x.value(),self.gerber_origin_y.value(),
+            self.alignment_confirmed)
+
+    def _restore_side_alignment(self,side):
+        if not hasattr(self,"_side_alignments"):
+            self._side_alignments={}
+        if side==self.workspace.board_side:return
+        values=self._side_alignments.get(side,(0.0,)*7+(False,))
+        from PySide6.QtCore import QSignalBlocker
+        spins=(self.xoff,self.yoff,self.aoff,self.cad_origin_x,self.cad_origin_y,
+               self.gerber_origin_x,self.gerber_origin_y)
+        blockers=[QSignalBlocker(spin) for spin in spins]
+        for spin,value in zip(spins,values[:7]):spin.setValue(value)
+        del blockers
+        self.dx,self.dy,self.da=values[:3]
+        self.alignment_confirmed=values[7]
+        self.workspace.set_alignment(self.dx,self.dy,self.da)
+        self.workspace.set_crosshair_origins(*values[3:7])
+        self.alignment_status.setText(
+            "Alignment confirmed — PAD matching enabled" if self.alignment_confirmed
+            else "Alignment not confirmed for "+side)
+        self._update_status()
 
     def import_gerber(self,append=False):
         files,_=QFileDialog.getOpenFileNames(self,"Import Gerber Layers","","Gerber (*.GTL *.GBL *.GTO *.GBO *.GTS *.GBS *.GTP *.GBP *.gbr *.ger *.pho *.art);;All Files (*)")
@@ -238,7 +269,7 @@ class MainWindow(QMainWindow):
             self.gerber_origin_x.value(),self.gerber_origin_y.value())
 
     def _alignment_changed(self):
-        self.dx=self.xoff.value(); self.dy=self.yoff.value(); self.da=self.aoff.value()
+        self.dx=self.xoff.value(); self.dy=self.yoff.value(); self.da=self.aoff.value()\n        self.alignment_confirmed=False\n        self.alignment_status.setText("Alignment changed — confirmation required")\n        self._save_side_alignment()
         self.workspace.set_alignment(self.dx,self.dy,self.da)
         if self.state.dimension_results:
             self.state.dimension_results={}; self.state.shape_models={}
