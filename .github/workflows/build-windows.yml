@@ -79,21 +79,3 @@ jobs:
           name: SMT-Dimension-Analyzer-Windows-x64
           path: dist/SMT_Dimension_Analyzer.exe
           if-no-files-found: error
-) { throw 'Malformed checksum manifest' }
-          $actual = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actual -ne $Matches[1].ToLowerInvariant()) { throw 'Release EXE checksum mismatch' }
-          $original = (Get-FileHash 'dist/SMT_Dimension_Analyzer.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actual -ne $original) { throw 'Packaged EXE differs from smoke-tested executable' }
-          Write-Host "Verified release archive: $($zip[0].Name)"
-          Write-Host "Verified SHA256: $actual"
-      - name: Upload versioned release package
-        uses: actions/upload-artifact@v4
-        with:
-          name: SMT-Dimension-Analyzer-Release-Package
-          path: release/*.zip
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SMT-Dimension-Analyzer-Windows-x64
-          path: dist/SMT_Dimension_Analyzer.exe
-          if-no-files-found: error
