@@ -20,7 +20,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("SMT Component Dimension Analyzer — Visual Engineering Review")
         self.resize(1500,900)
-        self.state=ProjectState(); self.dx=self.dy=self.da=0.0
+        self.state=ProjectState(); self.dx=self.dy=self.da=0.0; self.alignment_confirmed=False
         self._build(); self._update_status()
 
     def _build(self):
@@ -36,7 +36,7 @@ class MainWindow(QMainWindow):
         self.measure_btn=QPushButton("Measure"); self.measure_btn.setCheckable(True); self.measure_btn.toggled.connect(lambda v:self.workspace.set_measure_mode(v)); bar.addWidget(self.measure_btn)
         self.refs=QCheckBox("Ref Designators"); self.refs.setChecked(True); self.refs.toggled.connect(lambda v:self.workspace.toggle_refs(v)); bar.addWidget(self.refs)
         self.mpn_top=QPushButton("Lookup MPN"); self.mpn_top.clicked.connect(self._lookup_structured); bar.addWidget(self.mpn_top)
-        self.analyze_top=QPushButton("4. Analyze Dimensions"); self.analyze_top.clicked.connect(self._analyze); bar.addWidget(self.analyze_top)
+        self.analyze_top=QPushButton("4. Start PAD Match / Derive Dimensions"); self.analyze_top.clicked.connect(self._analyze); bar.addWidget(self.analyze_top)
         self.export_top=QPushButton("Export Excel + TXT"); self.export_top.clicked.connect(self._export); bar.addWidget(self.export_top)
         bar.addStretch()
         self.status_strip=QLabel(); outer.addWidget(self.status_strip)
@@ -91,7 +91,7 @@ class MainWindow(QMainWindow):
 
     def _alignment_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"CAD ↔ Gerber Alignment")
-        l.addWidget(QLabel("CAD stays fixed. Move/rotate the Gerber overlay live. No import acceptance is required."))
+        l.addWidget(QLabel("Select a CAD reference as (0,0), enter the matching Gerber point, then confirm alignment before PAD matching."))
         form=QFormLayout(); l.addLayout(form)
         self.xoff=QDoubleSpinBox(); self.yoff=QDoubleSpinBox(); self.aoff=QDoubleSpinBox()
         for s in (self.xoff,self.yoff): s.setRange(-10000,10000); s.setDecimals(4); s.setSingleStep(.01)
@@ -211,7 +211,7 @@ class MainWindow(QMainWindow):
         existing=self.state.gerber_paths if append else []
         paths=list(dict.fromkeys([*existing,*(Path(x) for x in files)]))
         previous_visible=set(self.workspace.visible_layers) if append else set()
-        self.state.gerber_paths=paths; self.state.gerber_documents=parse_gerber_files(paths); self.state.dimension_results={}; self.state.shape_models={}
+        self.state.gerber_paths=paths; self.state.gerber_documents=parse_gerber_files(paths); self.state.dimension_results={}; self.state.shape_models={}\n        self.alignment_confirmed=False; self.alignment_status.setText("Gerber layers changed — confirm alignment")
         self.workspace.set_data(gerbers=self.state.gerber_documents)
         if append:
             self.workspace.visible_layers=previous_visible | {str(p) for p in paths if p not in existing}
