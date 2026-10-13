@@ -252,7 +252,8 @@ class MainWindow(QMainWindow):
         existing=self.state.gerber_paths if append else []
         paths=list(dict.fromkeys([*existing,*(Path(x) for x in files)]))
         previous_visible=set(self.workspace.visible_layers) if append else set()
-        self.state.gerber_paths=paths; self.state.gerber_documents=parse_gerber_files(paths); self.state.dimension_results={}; self.state.shape_models={}\n        self.alignment_confirmed=False; self.alignment_status.setText("Gerber layers changed — confirm alignment")
+        self.state.gerber_paths=paths; self.state.gerber_documents=parse_gerber_files(paths); self.state.dimension_results={}; self.state.shape_models={}
+        self.alignment_confirmed=False; self.alignment_status.setText("Gerber layers changed — confirm alignment")
         self.workspace.set_data(gerbers=self.state.gerber_documents)
         if append:
             self.workspace.visible_layers=previous_visible | {str(p) for p in paths if p not in existing}
@@ -269,7 +270,9 @@ class MainWindow(QMainWindow):
             self.gerber_origin_x.value(),self.gerber_origin_y.value())
 
     def _alignment_changed(self):
-        self.dx=self.xoff.value(); self.dy=self.yoff.value(); self.da=self.aoff.value()\n        self.alignment_confirmed=False\n        self.alignment_status.setText("Alignment changed — confirmation required")\n        self._save_side_alignment()
+        self.dx=self.xoff.value(); self.dy=self.yoff.value(); self.da=self.aoff.value()
+        self.alignment_confirmed=False\n        self.alignment_status.setText("Alignment changed — confirmation required")
+        self._save_side_alignment()
         self.workspace.set_alignment(self.dx,self.dy,self.da)
         if self.state.dimension_results:
             self.state.dimension_results={}; self.state.shape_models={}
