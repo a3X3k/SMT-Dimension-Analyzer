@@ -15,7 +15,7 @@ class PCBWorkspace(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.cad=[]; self.gerbers=[]; self.visible_layers=set(); self.show_refs=True; self.board_side='Top'
         self.dx=self.dy=self.angle=0.0; self.selected_ref=""; self.review_bbox=None
-        self.gerber_opacity=.85; self.measure_mode=False; self.measure_points=[]; self.origin_point=None
+        self.gerber_opacity=.85; self.measure_mode=False; self.measure_points=[]; self.origin_point=None; self.cad_origin=(0.0,0.0); self.gerber_origin=(0.0,0.0)
 
     def wheelEvent(self,e):
         self.scale(1.18 if e.angleDelta().y()>0 else 1/1.18,1.18 if e.angleDelta().y()>0 else 1/1.18)
@@ -24,6 +24,11 @@ class PCBWorkspace(QGraphicsView):
         if cad is not None:self.cad=cad
         if gerbers is not None:
             self.gerbers=gerbers; self.visible_layers={str(d.path) for d in gerbers}
+        self.redraw()
+
+    def set_crosshair_origins(self,cad_x,cad_y,gerber_x,gerber_y):
+        self.cad_origin=(float(cad_x),float(cad_y))
+        self.gerber_origin=(float(gerber_x),float(gerber_y))
         self.redraw()
 
     def set_origin_point(self,x,y):
@@ -98,6 +103,17 @@ class PCBWorkspace(QGraphicsView):
     def _tx(self,x,y):
         a=math.radians(self.angle)
         return x*math.cos(a)-y*math.sin(a)+self.dx, x*math.sin(a)+y*math.cos(a)+self.dy
+
+    def _draw_origin_crosshair(self,x,y,color,label):
+        from PySide6.QtCore import QRectF
+        pen=QPen(QColor(color)); pen.setCosmetic(True); pen.setWidthF(1.5)
+        extent=5000.0
+        self.scene.addLine(x-extent,-y,x+extent,-y,pen)
+        self.scene.addLine(x,-y-extent,x,-y+extent,pen)
+        text=self.scene.addSimpleText(label)
+        text.setBrush(QBrush(QColor(color)))
+        text.setPos(x+1,-y+1)
+        text.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
 
     def redraw(self):
         self.scene.clear()
