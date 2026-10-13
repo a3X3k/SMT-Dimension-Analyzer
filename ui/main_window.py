@@ -111,7 +111,21 @@ class MainWindow(QMainWindow):
         origins.addRow("CAD origin Y (mm)",self.cad_origin_y)
         origins.addRow("Gerber origin X (mm)",self.gerber_origin_x)
         origins.addRow("Gerber origin Y (mm)",self.gerber_origin_y)
+        self.alignment_status=QLabel("Alignment not confirmed")
+        l.addWidget(self.alignment_status)
+        confirm=QPushButton("Confirm Alignment / Enable PAD Match")
+        confirm.clicked.connect(self._confirm_alignment)
+        l.addWidget(confirm)
         l.addStretch()
+
+    def _confirm_alignment(self):
+        if not self.state.cad_records or not self.state.gerber_documents:
+            QMessageBox.warning(self,"Alignment","Import CAD and Gerber before confirming alignment.")
+            return
+        self.alignment_confirmed=True
+        self.alignment_status.setText("Alignment confirmed — PAD matching enabled")
+        self._save_side_alignment()
+        self._update_status()
 
     def _review_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"Component Review")
@@ -140,7 +154,7 @@ class MainWindow(QMainWindow):
         has_cad=bool(self.state.cad_records); has_bom=bool(self.state.unique_parts); has_gerber=bool(self.state.gerber_documents)
         self.bom_btn.setEnabled(has_cad)
         self.gerber_btn.setEnabled(has_cad)
-        ready=has_cad and has_bom and has_gerber
+        ready=has_cad and has_bom and has_gerber and self.alignment_confirmed
         self.analyze_top.setEnabled(ready); self.export_top.setEnabled(has_bom)
         if not has_cad: self.next_step.setText("Next: 1. Import CAD")
         elif not has_bom: self.next_step.setText("CAD loaded ✓   Next: 2. Import BOM")
@@ -347,6 +361,8 @@ class MainWindow(QMainWindow):
         menu.exec(self.lookup.mapToGlobal(self.lookup.rect().bottomLeft()))
 
     def _analyze(self):
+        if not self.alignment_confirmed:
+            QMessageBox.warning(self,"Alignment","Confirm CAD / Gerber alignment before PAD matching."); return
         if not (self.state.cad_records and self.state.unique_parts and self.state.gerber_documents):
             QMessageBox.warning(self,"Missing input","Import CAD, BOM and Gerber before analysis."); return
         analysis_docs=[d for d in self.state.gerber_documents if d.layer!="Other / Ignore"]
