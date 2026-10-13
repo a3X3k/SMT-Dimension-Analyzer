@@ -61,7 +61,15 @@ jobs:
           $sums = Join-Path 'release-verify' 'SHA256SUMS.txt'
           if (!(Test-Path $exe) -or !(Test-Path $sums)) { throw 'Release ZIP is missing EXE or SHA256SUMS.txt' }
           $expected = (Get-Content $sums -Raw).Trim()
-          if ($expected -notmatch '^([0-9a-fA-F]{64})  SMT_Dimension_Analyzer\\.exe        uses: actions/upload-artifact@v4
+          if ($expected -notmatch '^([0-9a-fA-F]{64})  SMT_Dimension_Analyzer[.]exe$') { throw 'Malformed checksum manifest' }
+          $actual = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $Matches[1].ToLowerInvariant()) { throw 'Release EXE checksum mismatch' }
+          $original = (Get-FileHash 'dist/SMT_Dimension_Analyzer.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $original) { throw 'Packaged EXE differs from smoke-tested executable' }
+          Write-Host "Verified release archive: $($zip[0].Name)"
+          Write-Host "Verified SHA256: $actual"
+      - name: Upload versioned release package
+        uses: actions/upload-artifact@v4
         with:
           name: SMT-Dimension-Analyzer-Release-Package
           path: release/*.zip
