@@ -4,7 +4,9 @@ import pandas as pd
 from models import BomRecord, UniquePart
 
 REF_ALIASES = {"ref","reference","refdes","designator","reference designator","ref designator"}
-PN_ALIASES = {"pn","mpn","ipn","part number","partnumber","manufacturer part number","internal p n","internal pn"}
+PN_ALIASES = {"pn","mpn","part number","partnumber","manufacturer part number","manufacturer pn","mfr pn"}
+IPN_ALIASES = {"ipn","internal p n","internal pn","internal part number","item number"}
+DESCRIPTION_ALIASES = {"description","part description","component description","item description","desc"}
 
 def _norm_col(v):
     return re.sub(r"[^a-z0-9]+", " ", str(v).strip().lower()).strip()
@@ -22,18 +24,23 @@ def detect_columns(df):
     pn = next((orig for n, orig in cols.items() if n in PN_ALIASES), None)
     return ref, pn
 
-def parse_bom(path, ref_col=None, pn_col=None):
+def parse_bom(path, ref_col=None, pn_col=None, ipn_col=None, description_col=None):
     path = Path(path); df = _read(path).fillna("")
     auto_ref, auto_pn = detect_columns(df)
     ref_col, pn_col = ref_col or auto_ref, pn_col or auto_pn
-    if not ref_col or not pn_col:
-        raise ValueError("Could not detect Reference and PN/MPN columns; manual mapping is required.")
+    if not ref_col or not (pn_col or ipn_col):
+        raise ValueError("Reference and at least one of MPN or IPN must be mapped.")
     out=[]
     for _, row in df.iterrows():
-        ref, mpn = str(row[ref_col]).strip(), str(row[pn_col]).strip()
-        if ref and mpn:
+        ref = str(row[ref_col]).strip()
+        mpn = str(row[pn_col]).strip() if pn_col else ""
+        ipn = str(row[ipn_col]).strip() if ipn_col else ""
+        description = str(row[description_col]).strip() if description_col else ""
+        identity = mpn or ipn
+        if ref and identity:
             refs=[x.strip() for x in ref.split(",") if x.strip()]
-            out.extend(BomRecord(ref=x, mpn=mpn, raw=row.to_dict()) for x in refs)
+            raw=row.to_dict(); raw.update({"mapped_mpn":mpn,"mapped_ipn":ipn,"mapped_description":description})
+            out.extend(BomRecord(ref=x, mpn=identity, raw=raw) for x in refs)
     return out
 
 def group_unique_parts(records):
@@ -46,4 +53,7 @@ def group_unique_parts(records):
 def inspect_bom(path):
     path = Path(path); df = _read(path).fillna("")
     ref, pn = detect_columns(df)
-    return df, {"ref": ref, "mpn": pn}
+    cols = {_norm_col(c): c for c in df.columns}
+    ipn = next((orig for n, orig in cols.items() if n in IPN_ALIASES), None)
+    description = next((orig for n, orig in cols.items() if n in DESCRIPTION_ALIASES), None)
+    return df, {"ref": ref, "mpn": pn, "ipn": ipn, "description": description}
