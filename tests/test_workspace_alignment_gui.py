@@ -139,3 +139,30 @@ def test_large_gerber_layer_uses_one_graphics_path():
     w.set_alignment(1,2,0)
     assert len([i for i in w.scene.items() if isinstance(i,QGraphicsPathItem)])==1
     w.close()
+
+
+def test_independent_gerber_layer_movement_in_mm():
+    _app()
+    w=PCBWorkspace()
+    a=GerberDocument(path=Path("a.gto"),layer="Top Silkscreen",primitives=[Primitive(kind="line",x=10,y=20,x2=11,y2=20)])
+    b=GerberDocument(path=Path("b.gtp"),layer="Top Paste",primitives=[Primitive(kind="line",x=10,y=20,x2=11,y2=20)])
+    w.set_data(gerbers=[a,b])
+    w.set_layer_offset(a.path,-2.5,1.25)
+    assert w._tx(10,20,str(a.path))==(7.5,21.25)
+    assert w._tx(10,20,str(b.path))==(10.0,20.0)
+    assert w.layer_offsets[str(a.path)]==(-2.5,1.25)
+    w.close()
+
+def test_gerber_layer_movement_gui_controls():
+    _app()
+    w=MainWindow()
+    d=GerberDocument(path=Path("top.gto"),layer="Top Silkscreen",primitives=[Primitive(kind="line",x=0,y=0,x2=1,y2=1)])
+    w.state.gerber_documents=[d]
+    w.workspace.set_data(gerbers=[d])
+    w._refresh_layers()
+    assert w.layer_table.columnCount()==5
+    w.layer_table.cellWidget(0,3).setValue(-1.5)
+    w.layer_table.cellWidget(0,4).setValue(2.25)
+    assert w.workspace.layer_offsets[str(d.path)]==(-1.5,2.25)
+    assert not w.alignment_confirmed
+    w.close()
