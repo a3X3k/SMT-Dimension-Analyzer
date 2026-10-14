@@ -249,13 +249,23 @@ class MainWindow(QMainWindow):
             return
         from ui.mapping_dialog import ColumnMappingDialog
         fields=[("ref","Reference / RefDes",True),
-                ("mpn","Part Number / MPN",True)]
+                ("mpn","Manufacturer Part Number (MPN)",False),
+                ("ipn","Internal Part Number (IPN)",False),
+                ("description","Description",False)]
         dialog=ColumnMappingDialog("Confirm BOM column mapping",list(df.columns),fields,det,self)
         if dialog.exec()!=QDialog.Accepted:return
         mapping=dialog.mapping()
+        if not (mapping["mpn"] or mapping["ipn"]):
+            QMessageBox.warning(self,"BOM mapping","Select at least one MPN or IPN column.")
+            return
+        selected=[v for v in mapping.values() if v]
+        if len(selected)!=len(set(selected)):
+            QMessageBox.warning(self,"BOM mapping","Each BOM field must map to a different column.")
+            return
         from matching.bom_cad_matcher import match_bom_to_cad
         try:
-            records=parse_bom(fn,ref_col=mapping["ref"],pn_col=mapping["mpn"])
+            records=parse_bom(fn,ref_col=mapping["ref"],pn_col=mapping["mpn"],
+                              ipn_col=mapping["ipn"],description_col=mapping["description"])
             stats=match_bom_to_cad(self.state.cad_records,records)
         except (ValueError,KeyError) as exc:
             QMessageBox.warning(self,"BOM import / reference matching",str(exc))
