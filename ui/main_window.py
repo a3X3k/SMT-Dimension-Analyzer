@@ -407,6 +407,14 @@ class MainWindow(QMainWindow):
         finally:
             QApplication.restoreOverrideCursor()
         self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
+        # Overlay only geometry actually measured in the Gerber analysis.
+        # A result belongs to its representative CAD ref, not every same-MPN
+        # placement (which can be elsewhere on the board).
+        overlays={}
+        for result in gerber_results.values():
+            if result.body_bbox and result.ref:
+                overlays[result.ref.strip().upper()]=(result.body_bbox,"silk")
+        self.workspace.set_inferred_footprints(overlays)
         QMessageBox.information(self,"MPN Lookup","Structured lookup complete. Exact matches populate manufacturer/package/source. Unverified physical dimensions remain blank.")
 
     def _lookup(self):
