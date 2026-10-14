@@ -27,7 +27,12 @@ def detect_columns(df):
 def parse_bom(path, ref_col=None, pn_col=None, ipn_col=None, description_col=None):
     path = Path(path); df = _read(path).fillna("")
     auto_ref, auto_pn = detect_columns(df)
-    ref_col, pn_col = ref_col or auto_ref, pn_col or auto_pn
+    ref_col = ref_col or auto_ref
+    if pn_col is None and ipn_col is None:
+        pn_col = auto_pn
+        if pn_col is None:
+            cols = {_norm_col(c): c for c in df.columns}
+            ipn_col = next((orig for n, orig in cols.items() if n in IPN_ALIASES), None)
     if not ref_col or not (pn_col or ipn_col):
         raise ValueError("Reference and at least one of MPN or IPN must be mapped.")
     out=[]
