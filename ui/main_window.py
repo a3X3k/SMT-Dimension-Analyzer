@@ -242,17 +242,23 @@ class MainWindow(QMainWindow):
     def import_bom(self):
         fn,_=QFileDialog.getOpenFileName(self,"Import BOM","","BOM (*.xlsx *.xls *.csv *.txt)")
         if not fn:return
-        df,det=inspect_bom(fn)
-        if not det.get("mpn") or not det.get("ref"):
-            missing=", ".join(x for x in ("Part Number / MPN" if not det.get("mpn") else "", "Reference" if not det.get("ref") else "") if x)
-            QMessageBox.warning(self,"BOM headings not recognized",f"Required BOM heading(s) not recognized: {missing}.\n\nThe software maps BOM columns automatically from their headings.")
+        try:
+            df,det=inspect_bom(fn)
+        except Exception as exc:
+            QMessageBox.warning(self,"BOM import",f"Unable to read BOM: {exc}")
             return
+        from ui.mapping_dialog import ColumnMappingDialog
+        fields=[("ref","Reference / RefDes",True),
+                ("mpn","Part Number / MPN",True)]
+        dialog=ColumnMappingDialog("Confirm BOM column mapping",list(df.columns),fields,det,self)
+        if dialog.exec()!=QDialog.Accepted:return
+        mapping=dialog.mapping()
         from matching.bom_cad_matcher import match_bom_to_cad
         try:
-            records=parse_bom(fn)
+            records=parse_bom(fn,ref_col=mapping["ref"],pn_col=mapping["mpn"])
             stats=match_bom_to_cad(self.state.cad_records,records)
-        except ValueError as exc:
-            QMessageBox.warning(self,"BOM reference matching",str(exc))
+        except (ValueError,KeyError) as exc:
+            QMessageBox.warning(self,"BOM import / reference matching",str(exc))
             return
         self.state.bom_path=Path(fn);self.state.bom_records=records
         self.state.unique_parts=group_unique_parts(records)
