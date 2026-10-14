@@ -302,15 +302,28 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
             break
         if result:break
     if not result:result=GerberDimensionResult(ref,remarks="No reliable MPN/manufacturer dimensions supplied and no credible silkscreen body proposal; manual review required.")
+    # Restrict pad collection to the nearest CAD neighbour; otherwise a large
+    # default search radius silently merges adjacent chip/SOT footprints.
+    pad_radius=search_radius_mm
+    if neighbor_positions:
+        distances=[hypot(nx-x,ny-y) for nx,ny in neighbor_positions if nx is not None and ny is not None and hypot(nx-x,ny-y)>0.01]
+        if distances:pad_radius=min(pad_radius,max(0.3,min(distances)*0.48))
     for d in docs:
         if d.layer in PASTE_LAYERS:
-            n,pitch,rows,cols,pl,pw,padl,padw=_pad_geometry(d,gx,gy,search_radius_mm)
+            n,pitch,rows,cols,pl,pw,padl,padw=_pad_geometry(d,gx,gy,pad_radius)
             if n:
                 result.pad_count=n; result.pitch_mm=pitch; result.pad_rows=rows; result.pad_columns=cols
                 result.paste_length_mm=pl; result.paste_width_mm=pw
                 result.paste_pad_length_mm=padl; result.paste_pad_width_mm=padw
                 result.remarks += " Paste envelope and paste-pad geometry are reported separately; they are not automatically treated as physical body/pin dimensions."
                 break
+    if result.pad_count and result.length_mm is None:
+        n=result.pad_count
+        family=("chip-style two-pad" if n==2 else "SOT-style three-pad" if n==3 else "four-terminal" if n==4 else "multi-pad")
+        result.source="Gerber Paste - Inferred Footprint"
+        result.confidence="LOW"
+        result.status="INFERRED FOOTPRINT / MANUAL REVIEW"
+        result.remarks += f" {family} footprint candidate from {n} paste flashes. Paste envelope is measured, NOT physical component body dimensions; verify pad ownership and package against BOM."
     return result
 
 def _consensus_cluster(candidates,tol=.15):
@@ -355,7 +368,7 @@ def _plausibility_notes(result):
 def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0)):
     by_ref={c.ref.strip().upper():c for c in cad_records}; out={}
     for p in unique_parts:
-        candidates=[]
+        candidates=[]; footprint_candidates=[]
         # Try every CAD-backed instance of the same MPN. A single damaged or
         # clipped silkscreen must not decide the dimension for the whole part.
         for ref in p.refs:
@@ -368,6 +381,7 @@ def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_m
                        and hypot(n.x-cad.x,n.y-cad.y)<=search_radius_mm*2]
             r=derive_gerber_dimension(ref,getattr(cad,"x",None),getattr(cad,"y",None),getattr(cad,"layer",""),documents,search_radius_mm,alignment,getattr(cad,"rotation",0.0),neighbors)
             if r.length_mm is not None and r.width_mm is not None:candidates.append(r)
+            elif r.pad_count and r.paste_length_mm and r.paste_width_mm:footprint_candidates.append(r)
         if candidates:
             cluster=_consensus_cluster(candidates)
             pool=cluster if len(cluster)>=2 else candidates
@@ -416,8 +430,15 @@ def derive_project_dimensions(unique_parts,cad_records,documents,search_radius_m
                 best.remarks += (f" Conflicting same-MPN dimensions across {len(candidates)} CAD instances "
                                  f"({len(cluster)} in consensus); explicit manual review required.")
             out[p.mpn]=best
+        elif footprint_candidates:
+            # Never promote a paste footprint envelope into physical body L/W.
+            # Preserve the actual Gerber measurements for Component Review.
+            best=sorted(footprint_candidates,key=lambda r:(-r.pad_count,r.ref))[0]
+            if len({(r.pad_count,r.paste_length_mm,r.paste_width_mm) for r in footprint_candidates})>1:
+                best.remarks += " Same-MPN footprint proposals differ; check individual placements."
+            out[p.mpn]=best
         else:
-            out[p.mpn]=GerberDimensionResult(p.representative_ref,remarks="No CAD-backed instance produced a credible silkscreen body proposal; manual review required.")
+            out[p.mpn]=GerberDimensionResult(p.representative_ref,remarks="No CAD-backed instance produced a credible silkscreen body or paste footprint proposal; manual review required.")
     return out
 
 def apply_manual_matches(unique_parts, automatic_results, manual_matches):
