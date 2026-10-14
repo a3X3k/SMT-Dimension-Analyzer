@@ -14,7 +14,7 @@ class PCBWorkspace(QGraphicsView):
         self.setBackgroundBrush(QColor("#292929"))
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.cad=[]; self.gerbers=[]; self.visible_layers=set(); self.show_refs=True; self.board_side='Top'
-        self.dx=self.dy=self.angle=0.0; self.selected_ref=""; self.review_bbox=None
+        self.dx=self.dy=self.angle=0.0; self.selected_ref=""; self.review_bbox=None; self.inferred_footprints={}
         self.gerber_opacity=.85; self.measure_mode=False; self.measure_points=[]; self.origin_point=None; self.cad_origin=(0.0,0.0); self.gerber_origin=(0.0,0.0)
 
     def wheelEvent(self,e):
@@ -57,6 +57,11 @@ class PCBWorkspace(QGraphicsView):
 
     def set_alignment(self,dx,dy,angle):
         self.dx=float(dx); self.dy=float(dy); self.angle=float(angle); self.redraw()
+
+    def set_inferred_footprints(self,footprints):
+        """CAD-space proposed Gerber outlines and paste envelopes; never confirmed bodies."""
+        self.inferred_footprints=dict(footprints or {})
+        self.redraw()
 
     def toggle_refs(self,on): self.show_refs=on; self.redraw()
 
@@ -149,6 +154,17 @@ class PCBWorkspace(QGraphicsView):
             if self.show_refs:
                 t=QGraphicsSimpleTextItem(c.ref); t.setBrush(QBrush(QColor("#D8D8D8")))
                 t.setPos(c.x+.75,-c.y-.65); t.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations); t.setData(0,c.ref); self.scene.addItem(t)
+
+        # Measured paste envelope (cyan) versus proposed silkscreen outline (green).
+        for c in self.cad:
+            if not self._cad_on_side(c):continue
+            proposal=self.inferred_footprints.get(c.ref.strip().upper())
+            if not proposal:continue
+            b,kind=proposal
+            if not b or b[2]<=b[0] or b[3]<=b[1]:continue
+            pen=QPen(QColor("#00D5FF") if kind=="paste" else QColor("#A8FF60"))
+            pen.setCosmetic(True); pen.setWidthF(1.8); pen.setStyle(Qt.DashLine)
+            self.scene.addRect(b[0],-b[3],b[2]-b[0],b[3]-b[1],pen)
 
         if self.review_bbox:
             b=self.review_bbox; pen=QPen(QColor("#66FF33")); pen.setCosmetic(True); pen.setWidthF(2.5)
