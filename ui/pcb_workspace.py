@@ -14,7 +14,7 @@ class PCBWorkspace(QGraphicsView):
         self.setBackgroundBrush(QColor("#292929"))
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.cad=[]; self.gerbers=[]; self.visible_layers=set(); self.show_refs=True; self.board_side='Top'
-        self.dx=self.dy=self.angle=0.0; self.layer_offsets={}; self.selected_ref=""; self.review_bbox=None
+        self.dx=self.dy=self.angle=0.0; self.selected_ref=""; self.review_bbox=None
         self.gerber_opacity=.85; self.measure_mode=False; self.measure_points=[]; self.origin_point=None; self.cad_origin=(0.0,0.0); self.gerber_origin=(0.0,0.0)
 
     def wheelEvent(self,e):
@@ -24,7 +24,6 @@ class PCBWorkspace(QGraphicsView):
         if cad is not None:self.cad=cad
         if gerbers is not None:
             self.gerbers=gerbers; self.visible_layers={str(d.path) for d in gerbers}
-            self.layer_offsets={key:value for key,value in self.layer_offsets.items() if key in self.visible_layers}
         self.redraw()
 
     def set_crosshair_origins(self,cad_x,cad_y,gerber_x,gerber_y):
@@ -59,10 +58,6 @@ class PCBWorkspace(QGraphicsView):
     def set_alignment(self,dx,dy,angle):
         self.dx=float(dx); self.dy=float(dy); self.angle=float(angle); self.redraw()
 
-    def set_layer_offset(self,path,dx,dy):
-        self.layer_offsets[str(path)]=(float(dx),float(dy))
-        self.redraw()
-
     def toggle_refs(self,on): self.show_refs=on; self.redraw()
 
     def set_layer_visible(self,path,on):
@@ -88,7 +83,7 @@ class PCBWorkspace(QGraphicsView):
             b=d.bounds()
             if b:
                 for x,y in ((b[0],b[1]),(b[2],b[3])):
-                    x,y=self._tx(x,y,str(d.path)); pts.append((x,-y))
+                    x,y=self._tx(x,y); pts.append((x,-y))
         if pts:
             xs=[p[0] for p in pts]; ys=[p[1] for p in pts]
             from PySide6.QtCore import QRectF
@@ -105,10 +100,9 @@ class PCBWorkspace(QGraphicsView):
         if c and c.x is not None and c.y is not None and self._cad_on_side(c):
             self.resetTransform(); self.scale(18,18); self.centerOn(c.x,-c.y)
 
-    def _tx(self,x,y,layer_path=None):
+    def _tx(self,x,y):
         a=math.radians(self.angle)
-        ox,oy=self.layer_offsets.get(layer_path,(0.0,0.0))
-        return x*math.cos(a)-y*math.sin(a)+self.dx+ox, x*math.sin(a)+y*math.cos(a)+self.dy+oy
+        return x*math.cos(a)-y*math.sin(a)+self.dx, x*math.sin(a)+y*math.cos(a)+self.dy
 
     def _draw_origin_crosshair(self,x,y,color,label):
         from PySide6.QtCore import QRectF
@@ -131,10 +125,10 @@ class PCBWorkspace(QGraphicsView):
             path=QPainterPath()
             for p in d.primitives:
                 if p.kind=="line" and None not in (p.x,p.y,p.x2,p.y2):
-                    x1,y1=self._tx(p.x,p.y,str(d.path)); x2,y2=self._tx(p.x2,p.y2,str(d.path))
+                    x1,y1=self._tx(p.x,p.y); x2,y2=self._tx(p.x2,p.y2)
                     path.moveTo(x1,-y1); path.lineTo(x2,-y2)
                 elif p.kind=="flash" and p.x is not None and p.y is not None:
-                    x,y=self._tx(p.x,p.y,str(d.path)); ap=d.apertures.get(p.aperture); sx=sy=.25
+                    x,y=self._tx(p.x,p.y); ap=d.apertures.get(p.aperture); sx=sy=.25
                     if ap and ap.params:
                         sx=ap.params[0]; sy=ap.params[1] if len(ap.params)>1 else sx
                         if d.units=="inch": sx*=25.4; sy*=25.4
