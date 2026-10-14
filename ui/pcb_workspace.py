@@ -134,7 +134,7 @@ class PCBWorkspace(QGraphicsView):
                     x1,y1=self._tx(p.x,p.y,str(d.path)); x2,y2=self._tx(p.x2,p.y2,str(d.path))
                     path.moveTo(x1,-y1); path.lineTo(x2,-y2)
                 elif p.kind=="flash" and p.x is not None and p.y is not None:
-                    x,y=self._tx(p.x,p.y); ap=d.apertures.get(p.aperture); sx=sy=.25
+                    x,y=self._tx(p.x,p.y,str(d.path)); ap=d.apertures.get(p.aperture); sx=sy=.25
                     if ap and ap.params:
                         sx=ap.params[0]; sy=ap.params[1] if len(ap.params)>1 else sx
                         if d.units=="inch": sx*=25.4; sy*=25.4
