@@ -412,8 +412,11 @@ class MainWindow(QMainWindow):
         # placement (which can be elsewhere on the board).
         overlays={}
         for result in gerber_results.values():
-            if result.body_bbox and result.ref:
-                overlays[result.ref.strip().upper()]=(result.body_bbox,"silk")
+            if result.ref:
+                if result.body_bbox:
+                    overlays[result.ref.strip().upper()]=(result.body_bbox,"silk")
+                elif result.paste_bbox:
+                    overlays[result.ref.strip().upper()]=(result.paste_bbox,"paste")
         self.workspace.set_inferred_footprints(overlays)
         QMessageBox.information(self,"MPN Lookup","Structured lookup complete. Exact matches populate manufacturer/package/source. Unverified physical dimensions remain blank.")
 
