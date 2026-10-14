@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
         op=QHBoxLayout(); l.addLayout(op); op.addWidget(QLabel("Gerber opacity"))
         self.gerber_opacity=QSlider(Qt.Horizontal); self.gerber_opacity.setRange(5,100); self.gerber_opacity.setValue(85); self.gerber_opacity.valueChanged.connect(lambda v:self.workspace.set_gerber_opacity(v/100)); op.addWidget(self.gerber_opacity)
         self.opacity_label=QLabel("85%"); self.gerber_opacity.valueChanged.connect(lambda v:self.opacity_label.setText(f"{v}%")); op.addWidget(self.opacity_label)
-        self.layer_table=QTableWidget(0,3); self.layer_table.setHorizontalHeaderLabels(["Visible","Gerber File","Assigned Type"])
+        self.layer_table=QTableWidget(0,5); self.layer_table.setHorizontalHeaderLabels(["Visible","Gerber File","Assigned Type","Move X (mm)","Move Y (mm)"])
         self.layer_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.Stretch); l.addWidget(self.layer_table,1)
 
     def _refresh_layers(self):
@@ -77,6 +77,25 @@ class MainWindow(QMainWindow):
             combo=QComboBox(); combo.addItems(types)
             if d.layer not in types: combo.insertItem(0,d.layer)
             combo.setCurrentText(d.layer); combo.currentTextChanged.connect(lambda value,doc=d:self._assign_layer(doc,value)); self.layer_table.setCellWidget(r,2,combo)
+            offsets=self.workspace.layer_offsets.get(str(d.path),(0.0,0.0))
+            spins=[]
+            for col,value in ((3,offsets[0]),(4,offsets[1])):
+                spin=QDoubleSpinBox(); spin.setRange(-10000,10000); spin.setDecimals(3)
+                spin.setSingleStep(0.1); spin.setSuffix(" mm"); spin.setValue(value)
+                self.layer_table.setCellWidget(r,col,spin); spins.append(spin)
+            for spin in spins:
+                spin.valueChanged.connect(lambda _value,path=str(d.path),xs=spins:self._move_gerber_layer(path,xs[0].value(),xs[1].value()))
+
+
+    def _move_gerber_layer(self,path,x,y):
+        self.workspace.set_layer_offset(path,x,y)
+        self.alignment_confirmed=False
+        self.alignment_status.setText("Gerber layer moved — confirm alignment")
+        if self.state.dimension_results:
+            self.state.dimension_results={}; self.state.shape_models={}
+            for row in range(self.table.rowCount()):
+                self.table.setItem(row,10,QTableWidgetItem("RE-ANALYZE AFTER ALIGNMENT"))
+        self._update_status()
 
     def _assign_layer(self,doc,value):
         doc.layer=value
@@ -295,6 +314,7 @@ class MainWindow(QMainWindow):
         paths=list(dict.fromkeys([*existing,*(Path(x) for x in files)]))
         previous_visible=set(self.workspace.visible_layers) if append else set()
         self.state.gerber_paths=paths; self.state.gerber_documents=parse_gerber_files(paths); self.state.dimension_results={}; self.state.shape_models={}
+        if not append:self.workspace.layer_offsets.clear()
         self._side_alignments.clear()
         self.alignment_confirmed=False; self.alignment_status.setText("Gerber layers changed — confirm alignment")
         self.workspace.set_data(gerbers=self.state.gerber_documents)
