@@ -265,6 +265,32 @@ def _pad_geometry(doc,x,y,r):
         pad_l=sl[len(sl)//2]; pad_w=sw[len(sw)//2]
     return len(flashes),(min(candidates) if candidates else None),len(uy),len(ux),round(max(el,ew),4),round(min(el,ew),4),(round(pad_l,4) if pad_l else None),(round(pad_w,4) if pad_w else None)
 
+def _large_grid_outline(documents,x,y,neighbors,limit=100.0):
+    """Propose a large outline only when supported by a dense regular pad grid."""
+    paste=[d for d in documents if d.layer in PASTE_LAYERS]
+    silk=[d for d in documents if d.layer in SILK_LAYERS]
+    for pd in paste:
+        flashes=[p for p in pd.primitives if p.kind=="flash" and p.polarity=="DARK"
+                 and p.x is not None and p.y is not None and abs(p.x-x)<=limit/2 and abs(p.y-y)<=limit/2]
+        if len(flashes)<25:continue
+        xs=sorted(set(round(p.x,3) for p in flashes)); ys=sorted(set(round(p.y,3) for p in flashes))
+        if len(xs)<5 or len(ys)<5:continue
+        px=_pitch([p.x for p in flashes]); py=_pitch([p.y for p in flashes])
+        if not px or not py or abs(px-py)>max(.1,.2*min(px,py)):continue
+        # Dense grids must be centered around the CAD reference and occupy
+        # both sides of it, rather than matching a remote board-wide pad field.
+        if not (xs[0]<x<xs[-1] and ys[0]<y<ys[-1]):continue
+        if hypot((xs[0]+xs[-1])/2-x,(ys[0]+ys[-1])/2-y)>max(px,py)*3:continue
+        for sd in silk:
+            b,ids=_body_candidate(sd,x,y,limit/2)
+            if not b:continue
+            w,h=b[2]-b[0],b[3]-b[1]
+            if not (5<=w<=limit and 5<=h<=limit):continue
+            if not (b[0]<=xs[0] and b[2]>=xs[-1] and b[1]<=ys[0] and b[3]>=ys[-1]):continue
+            if neighbors and any(b[0]<nx<b[2] and b[1]<ny<b[3] for nx,ny in neighbors if nx is not None and ny is not None):continue
+            return sd,b,ids,len(flashes),px,py
+    return None
+
 def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,alignment=(0.0,0.0,0.0),cad_rotation=0.0,neighbor_positions=None):
     if x is None or y is None:return GerberDimensionResult(ref,remarks="CAD X/Y required.")
     side=_side(cad_layer); docs=[d for d in documents if not side or _side(d.layer)==side]
@@ -301,6 +327,21 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
                 note+"Use only after user acceptance when reliable MPN/manufacturer dimensions are unavailable. Height not inferred.",round(acx,4),round(acy,4),d.layer,b_aligned,ids)
             break
         if result:break
+    if not result:
+        neighbor_gerber=[_inverse(nx,ny,dx,dy,angle) for nx,ny in (neighbor_positions or []) if nx is not None and ny is not None]
+        large=_large_grid_outline(docs,gx,gy,neighbor_gerber)
+        if large:
+            d,b,ids,n,px,py=large
+            center=((b[0]+b[2])/2,(b[1]+b[3])/2)
+            acx,acy=_forward(*center,dx,dy,angle)
+            result=GerberDimensionResult(ref,round(max(b[2]-b[0],b[3]-b[1]),4),
+                round(min(b[2]-b[0],b[3]-b[1]),4),None,
+                "Gerber Silkscreen - Grid-supported Outline","LOW",
+                "INFERRED OUTLINE / MANUAL REVIEW",
+                "Dense regular BGA-like paste grid supports this closed Gerber outline. "
+                "Outline may be body, courtyard, or board artwork; verify before accepting. "
+                f"Grid flashes: {n}; pitch X/Y: {px:.4f}/{py:.4f} mm. Height not inferred.",
+                round(acx,4),round(acy,4),d.layer,_transform_bbox(b,dx,dy,angle),ids)
     if not result:result=GerberDimensionResult(ref,remarks="No reliable MPN/manufacturer dimensions supplied and no credible silkscreen body proposal; manual review required.")
     # Restrict pad collection to the nearest CAD neighbour; otherwise a large
     # default search radius silently merges adjacent chip/SOT footprints.
