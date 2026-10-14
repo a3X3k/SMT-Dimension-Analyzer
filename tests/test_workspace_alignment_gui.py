@@ -139,3 +139,17 @@ def test_large_gerber_layer_uses_one_graphics_path():
     w.set_alignment(1,2,0)
     assert len([i for i in w.scene.items() if isinstance(i,QGraphicsPathItem)])==1
     w.close()
+
+
+def test_gerber_layers_move_together_from_layers_tab():
+    _app()
+    w=MainWindow()
+    w.gerber_group_x.setValue(-1.5)
+    w.gerber_group_y.setValue(2.25)
+    assert w.xoff.value()==-1.5 and w.yoff.value()==2.25
+    assert w.workspace.dx==-1.5 and w.workspace.dy==2.25
+    assert w.workspace._tx(10,20)==(8.5,22.25)
+    w.xoff.setValue(3.0)
+    assert w.gerber_group_x.value()==3.0
+    assert w.layer_table.columnCount()==3
+    w.close()
