@@ -11,6 +11,7 @@ class GerberDimensionResult:
     body_bbox:tuple|None=None; primitive_ids:list[int]=field(default_factory=list)
     pad_count:int|None=None; pitch_mm:float|None=None; pad_rows:int|None=None; pad_columns:int|None=None
     paste_length_mm:float|None=None; paste_width_mm:float|None=None; paste_pad_length_mm:float|None=None; paste_pad_width_mm:float|None=None
+    paste_bbox:tuple|None=None
     accepted:bool=False
 
 def _side(s):
@@ -356,6 +357,13 @@ def derive_gerber_dimension(ref,x,y,cad_layer,documents,search_radius_mm=4.0,ali
                 result.pad_count=n; result.pitch_mm=pitch; result.pad_rows=rows; result.pad_columns=cols
                 result.paste_length_mm=pl; result.paste_width_mm=pw
                 result.paste_pad_length_mm=padl; result.paste_pad_width_mm=padw
+                selected=[_bbox(d,p) for p in d.primitives
+                          if p.kind=="flash" and p.polarity=="DARK"
+                          and p.x is not None and p.y is not None
+                          and abs(p.x-gx)<=pad_radius and abs(p.y-gy)<=pad_radius]
+                selected=[b for b in selected if b]
+                if selected:
+                    result.paste_bbox=_transform_bbox(_union(selected),dx,dy,angle)
                 result.remarks += " Paste envelope and paste-pad geometry are reported separately; they are not automatically treated as physical body/pin dimensions."
                 break
     if result.pad_count and result.length_mm is None:
