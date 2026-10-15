@@ -13,7 +13,7 @@ class PCBWorkspace(QGraphicsView):
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setBackgroundBrush(QColor("#292929"))
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.cad=[]; self.gerbers=[]; self.visible_layers=set(); self.show_refs=True; self.board_side='Top'
+        self.cad=[]; self.gerbers=[]; self.visible_layers=set(); self.show_refs=True; self.review_refs=None; self.board_side='Top'
         self.dx=self.dy=self.angle=0.0; self.selected_ref=""; self.review_bbox=None; self.inferred_footprints={}
         self.gerber_opacity=.85; self.measure_mode=False; self.measure_points=[]; self.origin_point=None; self.cad_origin=(0.0,0.0); self.gerber_origin=(0.0,0.0)
 
@@ -57,6 +57,11 @@ class PCBWorkspace(QGraphicsView):
 
     def set_alignment(self,dx,dy,angle):
         self.dx=float(dx); self.dy=float(dy); self.angle=float(angle); self.redraw()
+
+    def set_review_refs(self,refs):
+        """Show one representative CAD marker per part number after analysis."""
+        self.review_refs={str(ref).strip().upper() for ref in refs} if refs is not None else None
+        self.redraw()
 
     def set_inferred_footprints(self,footprints):
         """CAD-space proposed Gerber outlines and paste envelopes; never confirmed bodies."""
@@ -146,6 +151,7 @@ class PCBWorkspace(QGraphicsView):
         sel_pen=QPen(QColor("#66FF33")); sel_pen.setCosmetic(True); sel_pen.setWidthF(2)
         for c in self.cad:
             if c.x is None or c.y is None or not self._cad_on_side(c): continue
+            if self.review_refs is not None and c.ref.strip().upper() not in self.review_refs:continue
             pen=sel_pen if c.ref==self.selected_ref else cad_pen
             r=QGraphicsRectItem(-.65,-.45,1.3,.9); r.setPos(c.x,-c.y); r.setRotation(-(c.rotation or 0))
             r.setPen(pen); r.setData(0,c.ref); self.scene.addItem(r)
@@ -157,7 +163,7 @@ class PCBWorkspace(QGraphicsView):
 
         # Measured paste envelope (cyan) versus proposed silkscreen outline (green).
         for c in self.cad:
-            if not self._cad_on_side(c):continue
+            if not self._cad_on_side(c) or (self.review_refs is not None and c.ref.strip().upper() not in self.review_refs):continue
             proposal=self.inferred_footprints.get(c.ref.strip().upper())
             if not proposal:continue
             b,kind=proposal
