@@ -21,6 +21,8 @@ jobs:
         run: python -m compileall -q models.py parsers matching dimensions export ui lookup tests
       - name: Run tests
         run: pytest -q
+      - name: Generate branded Windows icon
+        run: python generate_icon.py
       - name: Build executable
         run: python -m PyInstaller --clean --noconfirm SMT_Dimension_Analyzer.spec
       - name: Verify source imports
@@ -28,10 +30,10 @@ jobs:
       - name: Verify executable
         shell: pwsh
         run: |
-          if (!(Test-Path 'dist/SMT_Dimension_Analyzer.exe')) { throw 'EXE not produced' }
-          Get-Item 'dist/SMT_Dimension_Analyzer.exe' | Format-List Name,Length,LastWriteTime
-          Get-FileHash 'dist/SMT_Dimension_Analyzer.exe' -Algorithm SHA256
-          $p = Start-Process -FilePath 'dist/SMT_Dimension_Analyzer.exe' -PassThru
+          if (!(Test-Path 'dist/PadNexa.exe')) { throw 'EXE not produced' }
+          Get-Item 'dist/PadNexa.exe' | Format-List Name,Length,LastWriteTime
+          Get-FileHash 'dist/PadNexa.exe' -Algorithm SHA256
+          $p = Start-Process -FilePath 'dist/PadNexa.exe' -PassThru
           Start-Sleep -Seconds 8
           if ($p.HasExited) { throw "Frozen app exited during startup smoke test with code $($p.ExitCode)" }
           Stop-Process -Id $p.Id -Force
@@ -41,11 +43,11 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "ci-$($env:GITHUB_SHA.Substring(0, 7))" }
-          $package = "SMT-Dimension-Analyzer-$version-Windows-x64"
+          $package = "PadNexa-$version-Windows-x64"
           New-Item -ItemType Directory -Force -Path "release/$package" | Out-Null
-          Copy-Item 'dist/SMT_Dimension_Analyzer.exe' "release/$package/"
-          $hash = (Get-FileHash "release/$package/SMT_Dimension_Analyzer.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  SMT_Dimension_Analyzer.exe" | Set-Content -Encoding ascii "release/$package/SHA256SUMS.txt"
+          Copy-Item 'dist/PadNexa.exe' "release/$package/"
+          $hash = (Get-FileHash "release/$package/PadNexa.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  PadNexa.exe" | Set-Content -Encoding ascii "release/$package/SHA256SUMS.txt"
           Compress-Archive -Path "release/$package/*" -DestinationPath "release/$package.zip"
           Write-Host "Release package: release/$package.zip"
           Write-Host "SHA256: $hash"
@@ -57,25 +59,25 @@ jobs:
           if ($zip.Count -ne 1) { throw "Expected exactly one release ZIP, found $($zip.Count)" }
           New-Item -ItemType Directory -Force -Path 'release-verify' | Out-Null
           Expand-Archive -LiteralPath $zip[0].FullName -DestinationPath 'release-verify'
-          $exe = Join-Path 'release-verify' 'SMT_Dimension_Analyzer.exe'
+          $exe = Join-Path 'release-verify' 'PadNexa.exe'
           $sums = Join-Path 'release-verify' 'SHA256SUMS.txt'
           if (!(Test-Path $exe) -or !(Test-Path $sums)) { throw 'Release ZIP is missing EXE or SHA256SUMS.txt' }
           $expected = (Get-Content $sums -Raw).Trim()
           if ($expected -notmatch '^([0-9a-fA-F]{64})  SMT_Dimension_Analyzer[.]exe$') { throw 'Malformed checksum manifest' }
           $actual = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actual -ne $Matches[1].ToLowerInvariant()) { throw 'Release EXE checksum mismatch' }
-          $original = (Get-FileHash 'dist/SMT_Dimension_Analyzer.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          $original = (Get-FileHash 'dist/PadNexa.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actual -ne $original) { throw 'Packaged EXE differs from smoke-tested executable' }
           Write-Host "Verified release archive: $($zip[0].Name)"
           Write-Host "Verified SHA256: $actual"
       - name: Upload versioned release package
         uses: actions/upload-artifact@v4
         with:
-          name: SMT-Dimension-Analyzer-Release-Package
+          name: PadNexa-Release-Package
           path: release/*.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: SMT-Dimension-Analyzer-Windows-x64
-          path: dist/SMT_Dimension_Analyzer.exe
+          name: PadNexa-Windows-x64
+          path: dist/PadNexa.exe
           if-no-files-found: error
