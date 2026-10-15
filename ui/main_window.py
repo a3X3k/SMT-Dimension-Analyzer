@@ -277,7 +277,7 @@ class MainWindow(QMainWindow):
             f"BOM: {Path(fn).name} — {len(self.state.unique_parts)} unique PNs; "
             f"{len(stats['matched'])} references matched to CAD; "
             f"{len(stats['bom_only'])} BOM-only; {len(stats['cad_only'])} CAD-only")
-        self.state.dimension_results={}; self.state.shape_models={}; self._populate(); self._update_status()
+        self.state.dimension_results={}; self.state.shape_models={}; self.workspace.set_review_refs(None); self._populate(); self._update_status()
 
     def _switch_board_side(self,side):
         self._restore_side_alignment(side)
@@ -436,6 +436,14 @@ class MainWindow(QMainWindow):
         analysis_docs=[d for d in self.state.gerber_documents if d.layer!="Other / Ignore"]
         gerber_results=derive_project_dimensions(self.state.unique_parts,self.state.cad_records,analysis_docs,alignment=(self.dx,self.dy,self.da))
         self.state.dimension_results=gerber_results
+        # The review has one row and one CAD representative per unique MPN.
+        # Keep all CAD placements internally for matching and measurements.
+        for part in self.state.unique_parts:
+            result=gerber_results.get(part.mpn)
+            if result and result.ref and result.ref.strip().upper() in {r.strip().upper() for r in part.refs}:
+                part.representative_ref=result.ref
+        self._populate()
+        self.workspace.set_review_refs(p.representative_ref for p in self.state.unique_parts)
         self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         for r,p in enumerate(self.state.unique_parts):
             x=self.state.dimension_results.get(p.mpn)
