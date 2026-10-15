@@ -1,5 +1,5 @@
 from pathlib import Path
-from PySide6.QtCore import QUrl,Qt
+from PySide6.QtCore import QUrl,Qt,QTimer
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import *
 from models import ProjectState
@@ -12,13 +12,15 @@ from dimensions.shape_model import build_project_shapes
 from export.excel_export import export_excel
 from export.text_export import export_text
 from ui.pcb_workspace import PCBWorkspace
+from ui.branding import APP_NAME, TAGLINE, app_icon, launch_splash
 from lookup.providers.web_search import lookup_links
 from lookup.mpn_lookup import lookup_mpn
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("SMT Component Dimension Analyzer — Visual Engineering Review")
+        self.setWindowTitle(f"{APP_NAME} — {TAGLINE}")
+        self.setWindowIcon(app_icon())
         self.resize(1500,900)
         self.state=ProjectState(); self.dx=self.dy=self.da=0.0; self.alignment_confirmed=False
         self._side_alignments={}
@@ -519,4 +521,15 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self,"Export","Created Shape_Dimensions.xlsx and Shape_Dimensions.txt")
 
 def run_app():
-    app=QApplication.instance() or QApplication([]); w=MainWindow(); w.show(); app.exec()
+    app=QApplication.instance() or QApplication([])
+    app.setApplicationName(APP_NAME)
+    app.setWindowIcon(app_icon())
+    splash=launch_splash()
+    splash.show()
+    app.processEvents()
+    w=MainWindow()
+    def reveal():
+        w.show()
+        splash.finish(w)
+    QTimer.singleShot(1600, reveal)
+    app.exec()
