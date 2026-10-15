@@ -36,6 +36,11 @@ class MainWindow(QMainWindow):
         self.fit=QPushButton("Fit Board"); self.fit.clicked.connect(lambda:self.workspace.fit_board()); bar.addWidget(self.fit)
         self.measure_btn=QPushButton("Measure"); self.measure_btn.setCheckable(True); self.measure_btn.toggled.connect(lambda v:self.workspace.set_measure_mode(v)); bar.addWidget(self.measure_btn)
         self.refs=QCheckBox("Ref Designators"); self.refs.setChecked(True); self.refs.toggled.connect(lambda v:self.workspace.toggle_refs(v)); bar.addWidget(self.refs)
+        self.show_all_refs=QCheckBox("Show all CAD references")
+        self.show_all_refs.setToolTip("After PAD matching, show or hide the other placements sharing each part number.")
+        self.show_all_refs.setChecked(False)
+        self.show_all_refs.toggled.connect(self._toggle_all_references)
+        bar.addWidget(self.show_all_refs)
         self.mpn_top=QPushButton("Lookup MPN"); self.mpn_top.clicked.connect(self._lookup_structured); bar.addWidget(self.mpn_top)
         self.analyze_top=QPushButton("4. Start PAD Match / Derive Dimensions"); self.analyze_top.clicked.connect(self._analyze); bar.addWidget(self.analyze_top)
         self.export_top=QPushButton("Export Excel + TXT"); self.export_top.clicked.connect(self._export); bar.addWidget(self.export_top)
@@ -162,6 +167,16 @@ class MainWindow(QMainWindow):
         self.alignment_status.setText("Alignment confirmed — PAD matching enabled")
         self._save_side_alignment()
         self._update_status()
+
+    def _toggle_all_references(self,show_all):
+        # None means all CAD placements are visible; the representative set
+        # is retained in project state for instant restoration.
+        if show_all or not self.state.dimension_results:
+            self.workspace.set_review_refs(None)
+        else:
+            self.workspace.set_review_refs(
+                p.representative_ref for p in self.state.unique_parts
+            )
 
     def _review_tab(self):
         w=QWidget(); l=QVBoxLayout(w); self.tabs.addTab(w,"Component Review")
@@ -443,7 +458,7 @@ class MainWindow(QMainWindow):
             if result and result.ref and result.ref.strip().upper() in {r.strip().upper() for r in part.refs}:
                 part.representative_ref=result.ref
         self._populate()
-        self.workspace.set_review_refs(p.representative_ref for p in self.state.unique_parts)
+        self._toggle_all_references(self.show_all_refs.isChecked())
         self.state.shape_models=build_project_shapes(self.state.unique_parts,self.state.cad_records,self.state.dimension_results,self.state.mpn_lookup_results)
         for r,p in enumerate(self.state.unique_parts):
             x=self.state.dimension_results.get(p.mpn)
